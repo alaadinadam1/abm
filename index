@@ -388,8 +388,9 @@ border-radius:20px;
 <script>
 
 const supabaseClient = window.supabase.createClient(
-    "https://vmxbedovoahuggfpcmyk.supabase.co",
-    "sb_publishable_y-bZryAIeagBLR0Kg0mw2Q_YwpmadhU"
+    "https://ihlwkwiimimoiplfqcdk.supabase.co",
+    "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK
+"
 );
 
 // دعم زر Enter
