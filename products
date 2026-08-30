@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إدارة المنتجات</title>
+
+<style>
+
+body{
+font-family:Tahoma, sans-serif;
+background:#f4f6f9;
+padding:10px;
+}
+
+.container{
+max-width:1000px;
+margin:auto;
+background:white;
+padding:15px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+
+h2{
+text-align:center;
+font-size:20px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr;
+gap:10px;
+}
+
+/* للشاشات الكبيرة */
+@media(min-width:768px){
+.grid{
+grid-template-columns:repeat(3,1fr);
+}
+}
+
+input,select{
+padding:10px;
+border:1px solid #ccc;
+border-radius:5px;
+width:100%;
+font-size:14px;
+box-sizing: border-box;
+}
+
+button{
+padding:10px;
+border:none;
+border-radius:5px;
+cursor:pointer;
+font-size:14px;
+width:100%;
+margin-top:5px;
+}
+
+/* للشاشات الكبيرة */
+@media(min-width:768px){
+button{
+width:auto;
+}
+}
+
+.save{background:#28a745;color:white}
+.edit{background:#ffc107}
+.delete{background:#dc3545;color:white}
+.logout{background:#333;color:white;float:none;margin-bottom:10px}
+
+/* للشاشات الكبيرة */
+@media(min-width:768px){
+.logout{float:left}
+}
+
+.table-container{
+overflow-x:auto;
+}
+
+table{
+min-width:600px;
+width:100%;
+margin-top:20px;
+border-collapse:collapse;
+}
+
+th,td{
+border:1px solid #ddd;
+padding:8px;
+text-align:center;
+font-size:13px;
+}
+
+th{
+background:#007bff;
+color:white;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<button class="logout" onclick="logout()">خروج</button>
+
+<h2>إدارة المنتجات</h2>
+
+<input type="text" id="searchBox" placeholder="بحث عن منتج..." onkeyup="searchProduct()">
+
+<br><br>
+
+<div class="grid">
+
+<input id="product_name" placeholder="اسم المنتج">
+
+<input id="pay_qte" type="number" placeholder="كمية الشراء">
+
+<input id="pice_qte" type="number" placeholder="عدد القطع">
+
+<input id="qte_in_stock" type="number" placeholder="المخزون">
+
+<input id="pay_price" type="number" placeholder="سعر الشراء">
+
+<input id="seal_price" type="number" placeholder="سعر البيع">
+
+<input id="pay_date" type="date">
+
+<input id="expare_date" type="date">
+
+<input id="req_id" placeholder="رقم الطلب">
+
+<input id="coasts_value" type="number" placeholder="التكاليف">
+
+<select id="id_cat"></select>
+
+<input id="p_weight" placeholder="الوزن">
+
+</div>
+
+<br>
+
+<button class="save" onclick="saveProduct()">حفظ المنتج</button>
+
+<div class="table-container">
+<table>
+
+<thead>
+<tr>
+<th>ID</th>
+<th>المنتج</th>
+<th>المخزون</th>
+<th>سعر البيع</th>
+<th>الصنف</th>
+<th>تعديل</th>
+<th>حذف</th>
+</tr>
+</thead>
+
+<tbody id="tableBody"></tbody>
+
+</table>
+</div>
+
+</div>
+
+<script>
+
+let edit_id = null;
+let products = [];
+let categories = []; // لتخزين أسماء التصنيفات والربط بينها
+
+// 1. تحميل الأصناف من السيرفر المحلي
+async function loadCategories(){
+    try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        categories = data;
+
+        let html = "";
+        data.forEach(c => {
+            // استخدام الحقل id_cat والوصف المتاح (مثلاً description_cat)
+            html += `<option value="${c.id_cat}">${c.description_cat || c.name_cat || ('صنف ' + c.id_cat)}</option>`;
+        });
+
+        document.getElementById("id_cat").innerHTML = html;
+    } catch (err) {
+        console.error("خطأ في تحميل الأصناف:", err);
+    }
+}
+
+// 2. تحميل المنتجات من السيرفر المحلي
+async function loadProducts(){
+    try {
+        const response = await fetch('/api/products');
+        products = await response.json();
+        renderTable(products);
+    } catch (err) {
+        console.error("خطأ في تحميل المنتجات:", err);
+    }
+}
+
+// 3. عرض جدول المنتجات بربط رقم الصنف باسمه إن وُجد
+function renderTable(list){
+    let html = "";
+    list.forEach(p => {
+        // البحث عن اسم الصنف بناءً على id_cat لعرض اسمه بدلاً من رقمه
+        const catObj = categories.find(c => c.id_cat == p.id_cat);
+        const catName = catObj ? (catObj.description_cat || catObj.name_cat) : p.id_cat;
+
+        html += `
+        <tr>
+        <td>${p.id_product}</td>
+        <td>${p.product_name}</td>
+        <td>${p.qte_in_stock}</td>
+        <td>${p.seal_price}</td>
+        <td>${catName}</td>
+        <td><button class="edit" onclick="editProduct(${p.id_product})">تعديل</button></td>
+        <td><button class="delete" onclick="deleteProduct(${p.id_product})">حذف</button></td>
+        </tr>`;
+    });
+    document.getElementById("tableBody").innerHTML = html;
+}
+
+// 4. حفظ أو تعديل المنتج عبر الخادم المحلي
+async function saveProduct(){
+    let payQte = Number(document.getElementById("pay_qte").value) || 0;
+    let piceQte = Number(document.getElementById("pice_qte").value) || 0;
+    
+    // إذا قام المستخدم بكتابة المخزون يدوياً نأخذه، وإلا نحسبه تلقائياً
+    let stockInput = Number(document.getElementById("qte_in_stock").value);
+    let stockCalculated = stockInput ? stockInput : (payQte * piceQte);
+
+    let data = {
+        product_name: document.getElementById("product_name").value || null,
+        pay_qte: payQte,
+        pice_qte: piceQte,
+        qte_in_stock: stockCalculated,
+        pay_price: Number(document.getElementById("pay_price").value) || 0,
+        seal_price: Number(document.getElementById("seal_price").value) || 0,
+        pay_date: document.getElementById("pay_date").value || null,
+        expare_date: document.getElementById("expare_date").value || null,
+        req_id: document.getElementById("req_id").value || null,
+        coasts_value: Number(document.getElementById("coasts_value").value) || 0,
+        id_cat: Number(document.getElementById("id_cat").value) || 1,
+        p_weight: document.getElementById("p_weight").value || null
+    };
+
+    try {
+        let response;
+        if(edit_id == null){
+            // إضافة منتج جديد
+            response = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } else {
+            // تحديث منتج موجود (تأكد أن السيرفر يدعم مسار PUT أو POST للتحديث)
+            response = await fetch(`/api/products/${edit_id}`, {
+                method: 'PUT', // أو POST حسب كود التعديل في السيرفر الخاص بك
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            edit_id = null;
+        }
+
+        if(!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "فشل حفظ البيانات");
+        }
+
+        clearForm();
+        loadProducts();
+    } catch(err) {
+        alert("خطأ: " + err.message);
+    }
+}
+
+// 5. تعبئة النموذج للتعديل
+function editProduct(id){
+    let p = products.find(x => x.id_product == id);
+    if(!p) return;
+
+    document.getElementById("product_name").value = p.product_name || "";
+    document.getElementById("pay_qte").value = p.pay_qte || "";
+    document.getElementById("pice_qte").value = p.pice_qte || "";
+    document.getElementById("qte_in_stock").value = p.qte_in_stock || "";
+    document.getElementById("pay_price").value = p.pay_price || "";
+    document.getElementById("seal_price").value = p.seal_price || "";
+    
+    // تنسيق التاريخ ليطابق صيغة حقل التاريخ yyyy-MM-dd
+    if(p.pay_date) document.getElementById("pay_date").value = p.pay_date.split('T')[0];
+    if(p.expare_date) document.getElementById("expare_date").value = p.expare_date.split('T')[0];
+    
+    document.getElementById("req_id").value = p.req_id || "";
+    document.getElementById("coasts_value").value = p.coasts_value || "";
+    document.getElementById("id_cat").value = p.id_cat || "";
+    document.getElementById("p_weight").value = p.p_weight || "";
+
+    edit_id = id;
+}
+
+// 6. حذف منتج
+async function deleteProduct(id){
+    if(!confirm("تأكيد الحذف؟")) return;
+    try {
+        const response = await fetch(`/api/products/${id}`, {
+            method: 'DELETE'
+        });
+        if(response.ok) {
+            loadProducts();
+        } else {
+            alert("فشل حذف المنتج من الخادم المحلي");
+        }
+    } catch (err) {
+        alert("خطأ عند الحذف: " + err.message);
+    }
+}
+
+// 7. بحث
+function searchProduct(){
+    let word = document.getElementById("searchBox").value.toLowerCase();
+    let filtered = products.filter(p =>
+        p.product_name?.toLowerCase().includes(word)
+    );
+    renderTable(filtered);
+}
+
+// 8. مسح الحقول
+function clearForm(){
+    document.querySelectorAll(".grid input").forEach(i => i.value = "");
+    edit_id = null;
+}
+
+// 9. خروج
+function logout(){
+    window.location.href = "index.html";
+}
+
+// تشغيل جلب البيانات عند بدء تحميل الصفحة
+async function init() {
+    await loadCategories();
+    await loadProducts();
+}
+
+init();
+
+</script>
+
+</body>
+</html>
