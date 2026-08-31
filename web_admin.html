@@ -128,7 +128,7 @@
                     html = `<tr><td colspan="3" class="p-4 text-gray-400">لم يتم إضافة مناطق شحن بعد.</td></tr>`;
                 } else {
                     data.forEach(row => {
-                        shippingRatesMap[row.region_name.trim()] = Number(row.shipping_cost);
+                        shippingRatesMap[row.region_name.trim().toLowerCase()] = Number(row.shipping_cost);
                         const safeRegionName = escapeHtml(row.region_name);
 
                         html += `
@@ -147,12 +147,12 @@
             }
         }
 
-        // 2. دالة حساب الشحن فقط للمنطقة
+        // 2. دالة حساب الشحن فقط للمنطقة (تطابق محسّن)
         function getShippingCostForAddress(address) {
             if (!address) return 0;
-            const cleanedAddress = address.trim();
+            const cleanedAddress = address.trim().toLowerCase();
             for (let region in shippingRatesMap) {
-                if (cleanedAddress.includes(region) || region.includes(cleanedAddress)) {
+                if (cleanedAddress.includes(region)) {
                     return shippingRatesMap[region];
                 }
             }
@@ -206,7 +206,7 @@
             }
         }
 
-        // 5. جلب وعرض طلبات المتجر مع تفادي التكرار
+        // 5. جلب وعرض طلبات المتجر
         async function loadWebOrders() {
             try {
                 const { data, error } = await supabaseClient
@@ -227,7 +227,6 @@
                         let badgeClass = isApproved ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800";
                         
                         let shippingCost = getShippingCostForAddress(o.client_address);
-                        // نعتمد total_amount المسجل في الطلب كإجمالي نهائي ثابت
                         let totalAmount = Number(o.total_amount || 0);
 
                         html += `
@@ -255,7 +254,7 @@
             }
         }
 
-        // 6. معاينة الفاتورة وفصل المنتجات عن الشحن بدقة بدون دبلة
+        // 6. معاينة الفاتورة
         async function previewAndPrepareInvoice(orderId) {
             const order = loadedOrdersCache.find(item => item.id_web_order === orderId);
             if (!order) return alert("تعذر العثور على معلومات الطلب");
@@ -269,11 +268,9 @@
 
             const money = v => Number(v || 0).toLocaleString();
             
-            // حساب مجموع المنتجات مباشرة من الأصناف
             let productsTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
             let shippingCost = getShippingCostForAddress(order.client_address);
             
-            // إذا كان total_amount المخزن في الطلب أكبر من مجموع المنتجات، نعتمد الإجمالي المخزن لضمان الدقة
             let grandTotal = Number(order.total_amount || 0);
             if (grandTotal < productsTotal) {
                 grandTotal = productsTotal + shippingCost;
@@ -293,7 +290,7 @@
                 shareText += `- ${i.product_name} (الكمية: ${i.qte} | السعر: ${money(i.price)} ج.س)\n`;
             });
 
-            shareText += `\n💵 مجموع المنتجات: ${money(productsTotal)} ج.س\n🚚 رسوم الشحن: ${money(shippingCost)} ج.س\n💰 الإجمالي النهائي: ${money(grandTotal)} ج.س\n🌹 شكراً لتعاملك مع ة ABM!`;
+            shareText += `\n💵 مجموع المنتجات: ${money(productsTotal)} ج.س\n🚚 رسوم الشحن: ${money(shippingCost)} ج.س\n💰 الإجمالي النهائي: ${money(grandTotal)} ج.س\n🌹 شكراً لتعاملك مع مؤسسة ABM!`;
 
             const dateObj = new Date(order.date_created);
             const formattedDate = dateObj.toLocaleDateString("ar-EG");
@@ -345,7 +342,6 @@
 
             document.getElementById("invoicePreviewContent").innerHTML = invoiceHTML;
 
-            // إجراءات الأزرار
             document.getElementById("btnPrintAction").onclick = function() {
                 const w = window.open("", "_blank");
                 w.document.write(`<html><head><title>طباعة الفاتورة</title><style>body{direction:rtl; font-family:Arial; display:flex; justify-content:center; padding:20px;}</style></head><body>${document.getElementById("invoicePreviewContent").innerHTML}<script>window.onload=function(){window.print(); window.close();}<\/script></body></html>`);
@@ -360,7 +356,7 @@
 
             document.getElementById("btnCopyAction").onclick = function() {
                 navigator.clipboard.writeText(shareText);
-                alert("📋 تم نسخ نص الفاتورة الحقيقي بنجاح!");
+                alert("📋 تم نسخ نص الفاتورة بنجاح!");
             };
 
             const modal = document.getElementById("invoiceModal");
@@ -374,7 +370,7 @@
             modal.classList.remove("flex");
         }
 
-        // 7. اعتماد الطلب وخصم الكميات بالقيم الدقيقة
+        // 7. اعتماد الطلب وخصم الكميات
         async function approveAndDeductStock(webOrderId) {
             const order = loadedOrdersCache.find(item => item.id_web_order === webOrderId);
             if (!order) return alert("تعذر العثور على معلومات الطلب");
@@ -407,11 +403,19 @@
 
                 for (let item of items) {
                     await supabaseClient.from("orders_details").insert([{
-                        id_product: Number(item.id_product), id_order: Number(mainOrderId), qte: Number(item.qte),
-                        price: Number(item.price), descount: 0, amount: Number(item.amount), total_amount: finalGrandTotal,
-                        id_customer: fallbackCustomerId, date_order: currentDateTime, pay_method: "cash",
+                        id_product: Number(item.id_product), 
+                        id_order: Number(mainOrderId), 
+                        qte: Number(item.qte),
+                        price: Number(item.price), 
+                        descount: 0, 
+                        amount: Number(item.amount), 
+                        total_amount: Number(item.amount), // تم تعديلها لتأخذ قيمة العنصر الفعلي فقط بدلاً من إجمالي الفاتورة
+                        id_customer: fallbackCustomerId, 
+                        date_order: currentDateTime, 
+                        pay_method: "cash",
                         description_order: `فاتورة متجر معتمدة - العنوان: ${order.client_address} (رسوم الشحن: ${shippingCost} ج.س)`, 
-                        seal_man: "المتجر الإلكتروني", first_name: order.client_name
+                        seal_man: "المتجر الإلكتروني", 
+                        first_name: order.client_name
                     }]);
 
                     const { data: prodData } = await supabaseClient.from("products").select("qte_in_stock").eq("id_product", item.id_product).single();
