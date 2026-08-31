@@ -8,7 +8,168 @@
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
+    <style><!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة طلبات الموقع</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold">📦 لوحة التحكم: إدارة الطلبات الشاملة</h1>
+                <p class="text-xs text-gray-500">متابعة طلبات العميل وتحديث حالات الشحن والجاهزية</p>
+            </div>
+            <button onclick="fetchOrders()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition">
+                🔄 تحديث قائمة الطلبات
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right border-collapse text-xs md:text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b text-gray-600">
+                            <th class="p-4">رقم الطلب</th>
+                            <th class="p-4">اسم العميل والهاتف</th>
+                            <th class="p-4">عنوان التوصيل</th>
+                            <th class="p-4">تفاصيل المنتجات</th>
+                            <th class="p-4">المبلغ الإجمالي</th>
+                            <th class="p-4">حالة الطلب</th>
+                            <th class="p-4">تاريخ الطلب</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseClient = supabase.createClient(
+            "https://ihlwkwiimimoiplfqcdk.supabase.co",
+            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
+        );
+
+        async function fetchOrders() {
+            try {
+                // جلب بيانات الطلبات مع جلب السجلات المرتبطة من جدول التفاصيل تلقائياً
+                const { data: orders, error } = await supabaseClient
+                    .from('web_orders')
+                    .select(`
+                        id_web_order,
+                        client_name,
+                        client_phone,
+                        client_second_phone,
+                        client_address,
+                        total_amount,
+                        order_status,
+                        date_created,
+                        web_order_details (
+                            id_product,
+                            product_name,
+                            qte,
+                            price,
+                            amount
+                        )
+                    `)
+                    .order('date_created', { ascending: false });
+
+                if (error) throw error;
+                renderOrders(orders);
+
+            } catch (err) {
+                console.error("خطأ عند جلب الطلبات:", err);
+                alert("فشل جلب البيانات: " + err.message);
+            }
+        }
+
+        function renderOrders(orders) {
+            const tbody = document.getElementById('ordersTableBody');
+            if (!orders || orders.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            orders.forEach(order => {
+                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+                
+                // تجميع المنتجات من جدول التفاصيل المرتبط
+                let detailsHtml = '';
+                if (order.web_order_details && order.web_order_details.length > 0) {
+                    detailsHtml = order.web_order_details.map(d => 
+                        `<div class="mb-1">
+                            • <span class="font-bold">${d.product_name}</span> 
+                            <span class="text-gray-500">(${d.qte} × ${d.price})</span>
+                        </div>`
+                    ).join('');
+                } else {
+                    detailsHtml = '<span class="text-gray-400">لا توجد تفاصيل</span>';
+                }
+
+                html += `
+                <tr class="border-b hover:bg-gray-50 transition">
+                    <td class="p-4 font-bold">#${order.id_web_order}</td>
+                    <td class="p-4">
+                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
+                        <a href="https://wa.me/${order.client_phone}" target="_blank" class="text-green-600 hover:underline dir-ltr text-xs block">
+                            📱 ${order.client_phone || ''}
+                        </a>
+                        ${order.client_second_phone ? `<div class="text-gray-400 text-xs dir-ltr">📞 ${order.client_second_phone}</div>` : ''}
+                    </td>
+                    <td class="p-4 text-xs font-medium text-gray-700">
+                        ${order.client_address || 'لم يحدد'}
+                    </td>
+                    <td class="p-4 text-xs bg-gray-50 rounded-lg max-w-xs">
+                        ${detailsHtml}
+                    </td>
+                    <td class="p-4 font-bold text-blue-600">${Number(order.total_amount || 0).toFixed(2)} ج.س</td>
+                    <td class="p-4">
+                        <select onchange="updateStatus(${order.id_web_order}, this.value)" class="border rounded-lg p-1.5 text-xs font-bold outline-none bg-white shadow-sm">
+                            <option value="قيد المراجعة" ${order.order_status === 'قيد المراجعة' ? 'selected' : ''}>⏳ قيد المراجعة</option>
+                            <option value="قيد التجهيز" ${order.order_status === 'قيد التجهيز' ? 'selected' : ''}>📦 قيد التجهيز</option>
+                            <option value="تم الشحن" ${order.order_status === 'تم الشحن' ? 'selected' : ''}>🚚 تم الشحن</option>
+                            <option value="تم التوصيل" ${order.order_status === 'تم التوصيل' ? 'selected' : ''}>✅ تم التوصيل</option>
+                            <option value="ملغي" ${order.order_status === 'ملغي' ? 'selected' : ''}>❌ ملغي</option>
+                        </select>
+                    </td>
+                    <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        async function updateStatus(orderId, newStatus) {
+            try {
+                const { error } = await supabaseClient
+                    .from('web_orders')
+                    .update({ order_status: newStatus })
+                    .eq('id_web_order', orderId);
+
+                if (error) throw error;
+                alert(`تم تحديث حالة الطلب #${orderId} إلى: ${newStatus}`);
+            } catch (err) {
+                alert("فشل تحديث الحالة: " + err.message);
+            }
+        }
+
+        window.onload = fetchOrders;
+    </script>
+</body>
+</html>
         body { font-family: 'Cairo', sans-serif; }
     </style>
 </head>
