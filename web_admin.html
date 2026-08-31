@@ -115,7 +115,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات الطلبات مع تفاصيل المسوق إن وجد
+        // 1. جلب بيانات الطلبات (استعلام مطابق للحقول الحقيقية فقط)
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -128,8 +128,6 @@
                         client_address,
                         total_amount,
                         date_created,
-                        marketer_name,
-                        marketer_account,
                         web_order_details (
                             id_product,
                             product_name,
@@ -151,7 +149,7 @@
             }
         }
 
-        // 2. عرض الجدول الرئيسي (بدون عمود حالة الطلب)
+        // 2. عرض الجدول الرئيسي
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             if (!orders || orders.length === 0) {
@@ -189,7 +187,7 @@
             tbody.innerHTML = html;
         }
 
-        // 3. فتح النافذة المنبثقة وعرض الفاتورة مع بيانات المسوق بدون حالة الطلب
+        // 3. فتح النافذة المنبثقة وعرض الفاتورة مع حساب العمولة التجميعية
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) {
@@ -244,13 +242,11 @@
                         </div>
                     </div>
 
-                    <!-- بيانات المسوق -->
+                    <!-- تفاصيل العمولة -->
                     <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs space-y-2">
-                        <h4 class="font-bold text-sm text-amber-800 border-b border-amber-200 pb-1">📢 بيانات المسوق:</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-amber-900">
-                            <div><b>اسم المسوق:</b> ${order.marketer_name || 'غير محدد'}</div>
-                            <div><b>رقم الحساب/البنك:</b> ${order.marketer_account || 'غير محدد'}</div>
-                            <div><b>إجمالي العمولة:</b> ${Number(totalCommission).toFixed(2)} ج.س</div>
+                        <h4 class="font-bold text-sm text-amber-800 border-b border-amber-200 pb-1">📢 تفاصيل عمولة الطلب:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-amber-900">
+                            <div><b>مجموع عمولة المسوق:</b> ${Number(totalCommission).toFixed(2)} ج.س</div>
                         </div>
                     </div>
 
@@ -302,8 +298,7 @@
             text += `📱 *الهاتف:* ${order.client_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
-            text += `📢 *المسوق:* ${order.marketer_name || 'غير محدد'}\n`;
-            text += `💳 *حساب المسوق:* ${order.marketer_account || 'غير محدد'}\n`;
+            text += `📢 *عمولة الطلب:* ${Number(commission).toFixed(2)} ج.س\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
