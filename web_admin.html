@@ -55,14 +55,13 @@
                             <th class="p-4">اسم العميل والهاتف</th>
                             <th class="p-4">عنوان التوصيل</th>
                             <th class="p-4">المبلغ الإجمالي</th>
-                            <th class="p-4">حالة الطلب</th>
                             <th class="p-4">تاريخ الطلب</th>
                             <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -116,7 +115,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات الطلبات
+        // 1. جلب بيانات الطلبات مع تفاصيل المسوق إن وجد
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -128,8 +127,9 @@
                         client_second_phone,
                         client_address,
                         total_amount,
-                        order_status,
                         date_created,
+                        marketer_name,
+                        marketer_account,
                         web_order_details (
                             id_product,
                             product_name,
@@ -151,11 +151,11 @@
             }
         }
 
-        // 2. عرض الجدول الرئيسي
+        // 2. عرض الجدول الرئيسي (بدون عمود حالة الطلب)
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             if (!orders || orders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">لا توجد طلبات مسجلة حالياً.</td></tr>`;
                 return;
             }
 
@@ -177,15 +177,6 @@
                         ${order.client_address || 'لم يحدد'}
                     </td>
                     <td class="p-4 font-bold text-blue-600">${Number(order.total_amount || 0).toFixed(2)} ج.س</td>
-                    <td class="p-4">
-                        <select onchange="updateStatus(${order.id_web_order}, this.value)" class="border rounded-lg p-1.5 text-xs font-bold outline-none bg-white shadow-sm">
-                            <option value="قيد المراجعة" ${order.order_status === 'قيد المراجعة' ? 'selected' : ''}>⏳ قيد المراجعة</option>
-                            <option value="قيد التجهيز" ${order.order_status === 'قيد التجهيز' ? 'selected' : ''}>📦 قيد التجهيز</option>
-                            <option value="تم الشحن" ${order.order_status === 'تم الشحن' ? 'selected' : ''}>🚚 تم الشحن</option>
-                            <option value="تم التوصيل" ${order.order_status === 'تم التوصيل' ? 'selected' : ''}>✅ تم التوصيل</option>
-                            <option value="ملغي" ${order.order_status === 'ملغي' ? 'selected' : ''}>❌ ملغي</option>
-                        </select>
-                    </td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
                     <td class="p-4 text-center">
                         <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm transition flex items-center gap-1 mx-auto">
@@ -198,22 +189,7 @@
             tbody.innerHTML = html;
         }
 
-        // 3. تحديث حالة الطلب
-        async function updateStatus(orderId, newStatus) {
-            try {
-                const { error } = await supabaseClient
-                    .from('web_orders')
-                    .update({ order_status: newStatus })
-                    .eq('id_web_order', orderId);
-
-                if (error) throw error;
-                alert(`تم تحديث حالة الطلب #${orderId} إلى: ${newStatus}`);
-            } catch (err) {
-                alert("فشل تحديث الحالة: " + err.message);
-            }
-        }
-
-        // 4. فتح النافذة المنبثقة وعرض الفاتورة
+        // 3. فتح النافذة المنبثقة وعرض الفاتورة مع بيانات المسوق بدون حالة الطلب
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) {
@@ -252,9 +228,8 @@
                             <h2 class="text-xl font-extrabold text-blue-600">🧾 فاتورة مبيعات</h2>
                             <p class="text-xs text-gray-500">رقم الطلب: #${order.id_web_order}</p>
                         </div>
-                        <div class="text-left text-xs text-gray-500 space-y-1">
+                        <div class="text-left text-xs text-gray-500">
                             <div><b>التاريخ:</b> ${date}</div>
-                            <div><b>الحالة:</b> <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">${order.order_status || '-'}</span></div>
                         </div>
                     </div>
 
@@ -266,6 +241,16 @@
                             <div><b>الهاتف الأساسي:</b> ${order.client_phone || '-'}</div>
                             <div><b>الهاتف الاحتياطي:</b> ${order.client_second_phone || '-'}</div>
                             <div><b>عنوان التوصيل:</b> ${order.client_address || '-'}</div>
+                        </div>
+                    </div>
+
+                    <!-- بيانات المسوق -->
+                    <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs space-y-2">
+                        <h4 class="font-bold text-sm text-amber-800 border-b border-amber-200 pb-1">📢 بيانات المسوق:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-amber-900">
+                            <div><b>اسم المسوق:</b> ${order.marketer_name || 'غير محدد'}</div>
+                            <div><b>رقم الحساب/البنك:</b> ${order.marketer_account || 'غير محدد'}</div>
+                            <div><b>إجمالي العمولة:</b> ${Number(totalCommission).toFixed(2)} ج.س</div>
                         </div>
                     </div>
 
@@ -284,16 +269,10 @@
                         </tbody>
                     </table>
 
-                    <!-- الإجمالي والعمولة -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-2">
-                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                            <div class="font-bold text-amber-800">💼 إجمالي عمولة الطلب:</div>
-                            <div class="text-base font-extrabold text-amber-900 mt-1">${Number(totalCommission).toFixed(2)} ج.س</div>
-                        </div>
-                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-col justify-center">
-                            <div class="font-bold text-blue-800">💰 إجمالي الفاتورة:</div>
-                            <div class="text-lg font-extrabold text-blue-900 mt-1">${Number(order.total_amount || 0).toFixed(2)} ج.س</div>
-                        </div>
+                    <!-- الإجمالي النهائي -->
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl flex justify-between items-center text-xs">
+                        <div class="font-bold text-blue-800 text-sm">💰 إجمالي الفاتورة النهائي:</div>
+                        <div class="text-xl font-extrabold text-blue-900">${Number(order.total_amount || 0).toFixed(2)} ج.س</div>
                     </div>
                 </div>
             `;
@@ -311,17 +290,20 @@
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
 
-        // 5. إغلاق النافذة المنبثقة
+        // 4. إغلاق النافذة المنبثقة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 6. تجميع نص الفاتورة للمشاركة
+        // 5. تجميع نص الفاتورة للمشاركة
         function buildShareText(order, commission) {
             let text = `📦 *فاتورة طلبية جديدة #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف:* ${order.client_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
+            text += `------------------------------\n`;
+            text += `📢 *المسوق:* ${order.marketer_name || 'غير محدد'}\n`;
+            text += `💳 *حساب المسوق:* ${order.marketer_account || 'غير محدد'}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
@@ -336,7 +318,7 @@
             return text;
         }
 
-        // 7. نسخ نص الفاتورة كـ النص إلى الحافظة
+        // 6. نسخ نص الفاتورة كـ النص إلى الحافظة
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             let totalCommission = 0;
