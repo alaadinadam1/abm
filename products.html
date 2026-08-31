@@ -211,7 +211,7 @@ color:white;
 <script>
 // إعداد عميل Supabase
 const supabaseUrl = "https://ihlwkwiimimoiplfqcdk.supabase.co";
-// تنبيه: ينبغي استبدال هذا المفتاح بمفتاح anon الصحيح من لوحة تحكم Supabase الخاص بمشروعك
+// تأكد من استخدام مفتاح anon الصحيح من لوحة تحكم Supabase
 const supabaseKey = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK";
 const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 
@@ -219,9 +219,9 @@ let edit_id = null;
 let products = [];
 let categories = []; 
 let currentBase64Image = null;
-let imageChanged = false; // تتبع ما إذا قمت بتغيير الصورة عند التعديل
+let imageChanged = false;
 
-// تحويل وضغط صورة الـ Base64 لتفادي خطأ 400 بسبب الحجم الزائد
+// تحويل وضغط الصورة وتقليل أبعادها لتفادي خطأ 400 بسبب الحجم
 function convertFileToBase64Compressed(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -230,9 +230,8 @@ function convertFileToBase64Compressed(file) {
             const img = new Image();
             img.src = event.target.result;
             img.onload = () => {
-                // ضبط أبعاد أقصى عرض/ارتفاع 400px لتقليل حجم البيانات
-                const maxWidth = 400;
-                const maxHeight = 400;
+                const maxWidth = 350;
+                const maxHeight = 350;
                 let width = img.width;
                 let height = img.height;
 
@@ -254,8 +253,8 @@ function convertFileToBase64Compressed(file) {
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // ضغط الصورة لجودة 60% بفرز JPEG لتقليل الحجم كلياً
-                const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.6);
+                // ضغط الجودة لتقليل الحجم
+                const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.5);
                 resolve(compressedDataUrl);
             };
             img.onerror = error => reject(error);
@@ -264,7 +263,7 @@ function convertFileToBase64Compressed(file) {
     });
 }
 
-// معاينة الصورة المختارة وتجهيزها مضغوطة
+// معاينة الصورة المختارة وتجهيزها
 async function previewImage(event) {
     const file = event.target.files[0];
     const preview = document.getElementById("image_preview");
@@ -312,7 +311,7 @@ async function loadProducts(){
     }
 }
 
-// 3. عرض جدول المنتجات
+// 3. عرض جدول المنتجات (تم الاستدعاء بـ image_url)
 function renderTable(list){
     let html = "";
     const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=100";
@@ -320,7 +319,8 @@ function renderTable(list){
     list.forEach(p => {
         const catObj = categories.find(c => c.id_cat == p.id_cat);
         const catName = catObj ? (catObj.description_cat || catObj.name_cat) : (p.id_cat || "غير محدد");
-        const imgSrc = (p.image_product && typeof p.image_product === 'string' && p.image_product.length > 5) ? p.image_product : fallbackImg;
+        // استخدام image_url بدلاً من image_product
+        const imgSrc = (p.image_url && typeof p.image_url === 'string' && p.image_url.length > 5) ? p.image_url : fallbackImg;
 
         html += `
         <tr>
@@ -366,9 +366,9 @@ async function saveProduct(){
         department: document.getElementById("department").value || null
     };
 
-    // إرسال حقل الصورة فقط في حال وجود اختيار جديد للصورة لتفادي مشاكل الإرسال الفارغ
+    // التعديل الرئيسي: إرسال القيمة تحت اسم العمود الصحيح image_url
     if (imageChanged && currentBase64Image) {
-        payload.image_product = currentBase64Image;
+        payload.image_url = currentBase64Image;
     }
 
     try {
@@ -396,7 +396,7 @@ async function saveProduct(){
     }
 }
 
-// 5. تعبئة النموذج للتعديل
+// 5. تعبئة النموذج للتعديل (تم استخدام image_url)
 function editProduct(id){
     let p = products.find(x => x.id_product == id);
     if(!p) return;
@@ -416,18 +416,18 @@ function editProduct(id){
     document.getElementById("id_cat").value = p.id_cat || "";
     document.getElementById("department").value = p.department || "";
 
-    // عرض معاينة الصورة المحفوظة مسبقاً
+    // قراءة الصورة من حقل image_url
     const preview = document.getElementById("image_preview");
-    if (p.image_product && typeof p.image_product === 'string' && p.image_product.length > 5) {
-        preview.src = p.image_product;
+    if (p.image_url && typeof p.image_url === 'string' && p.image_url.length > 5) {
+        preview.src = p.image_url;
         preview.style.display = "block";
-        currentBase64Image = p.image_product;
+        currentBase64Image = p.image_url;
     } else {
         preview.style.display = "none";
         currentBase64Image = null;
     }
 
-    imageChanged = false; // لم يتغير ملف الصورة بعد
+    imageChanged = false;
     edit_id = id;
 }
 
