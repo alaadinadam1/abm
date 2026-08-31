@@ -228,6 +228,11 @@ const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 let edit_id = null;
 let marketersList = [];
 
+// دالة مساعدة للحصول على المعرف الأفضل
+function getId(item) {
+    return item.id_Marketer !== undefined ? item.id_Marketer : item.id_marketer;
+}
+
 // 1. تحميل بيانات المسوقين من Supabase
 async function loadMarketers() {
     try {
@@ -240,7 +245,7 @@ async function loadMarketers() {
         marketersList = data || [];
         
         // ترتيب المسوقين حسب ID تنازلياً
-        marketersList.sort((a, b) => (b.id_Marketer || b.id_marketer || 0) - (a.id_Marketer || a.id_marketer || 0));
+        marketersList.sort((a, b) => (getId(b) || 0) - (getId(a) || 0));
 
         renderTable(marketersList);
     } catch (err) {
@@ -255,11 +260,11 @@ function renderTable(list) {
         html = `<tr><td colspan="8">لا يوجد مسوقين مسجلين حالياً</td></tr>`;
     } else {
         list.forEach(m => {
-            let id = m.id_Marketer ?? m.id_marketer;
+            let id = getId(m);
             let name = m.client_name;
-            let phone = m.Marketer_phone ?? m.marketer_phone;
-            let whatsapp = m.Marketer_account_Whatsapp ?? m.marketer_account_whatsapp;
-            let account = m.Marketer_account ?? m.marketer_account;
+            let phone = m.Marketer_phone || m.marketer_phone;
+            let whatsapp = m.Marketer_account_Whatsapp || m.marketer_account_whatsapp;
+            let account = m.Marketer_account || m.marketer_account;
             let date = m.date_created;
 
             let formattedDate = date 
@@ -299,7 +304,7 @@ async function saveMarketer() {
     const whatsappVal = document.getElementById("Marketer_account_Whatsapp").value.trim();
     const accountVal = document.getElementById("Marketer_account").value.trim();
 
-    // تجهيز كائن البيانات الدقيق جداً بدون أعمدة وهمية
+    // تجهيز كائن البيانات الدقيق
     let payload = {
         client_name: client_name,
         Marketer_phone: phoneVal || null,
@@ -316,7 +321,6 @@ async function saveMarketer() {
             // تحديث مسوق موجود
             res = await client.from("marketers").update(payload).eq("id_Marketer", edit_id);
             if (res.error) {
-                // محاولة بحروف صغيرة للـ ID فقط إن لزم الأمر
                 res = await client.from("marketers").update(payload).eq("id_marketer", edit_id);
             }
         }
@@ -337,13 +341,13 @@ async function saveMarketer() {
 
 // 4. تعبئة النموذج للتعديل
 function editMarketer(id) {
-    let m = marketersList.find(x => (x.id_Marketer ?? x.id_marketer) == id);
+    let m = marketersList.find(x => getId(x) == id);
     if (!m) return;
 
     document.getElementById("client_name").value = m.client_name || "";
-    document.getElementById("Marketer_phone").value = m.Marketer_phone ?? m.marketer_phone ?? "";
-    document.getElementById("Marketer_account_Whatsapp").value = m.Marketer_account_Whatsapp ?? m.marketer_account_whatsapp ?? "";
-    document.getElementById("Marketer_account").value = m.Marketer_account ?? m.marketer_account ?? "";
+    document.getElementById("Marketer_phone").value = m.Marketer_phone || m.marketer_phone || "";
+    document.getElementById("Marketer_account_Whatsapp").value = m.Marketer_account_Whatsapp || m.marketer_account_whatsapp || "";
+    document.getElementById("Marketer_account").value = m.Marketer_account || m.marketer_account || "";
 
     edit_id = id;
     document.getElementById("btnSave").innerText = "تحديث البيانات";
@@ -371,7 +375,7 @@ function searchMarketer() {
     let word = document.getElementById("searchBox").value.toLowerCase();
     let filtered = marketersList.filter(m => {
         let name = (m.client_name || "").toLowerCase();
-        let phone = (m.Marketer_phone ?? m.marketer_phone || "").toLowerCase();
+        let phone = ((m.Marketer_phone || m.marketer_phone) || "").toLowerCase();
         return name.includes(word) || phone.includes(word);
     });
     renderTable(filtered);
