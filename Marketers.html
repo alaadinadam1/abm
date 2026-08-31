@@ -222,24 +222,35 @@ tr:nth-child(even) {
 <script>
 // إعداد عميل Supabase
 const supabaseUrl = "https://ihlwkwiimimoiplfqcdk.supabase.co";
-// ضع مفتاح الـ anon الخاص بك هنا
 const supabaseKey = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK";
 const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let edit_id = null;
 let marketersList = [];
 
+// دالة مساعدة للحصول على قيمة الحقل سواء كان بحروف كبيرة أو صغيرة
+function getFieldValue(obj, keyUpper, keyLower) {
+    if (!obj) return null;
+    return obj[keyUpper] !== undefined ? obj[keyUpper] : (obj[keyLower] !== undefined ? obj[keyLower] : null);
+}
+
 // 1. تحميل بيانات المسوقين من Supabase
 async function loadMarketers() {
     try {
         const { data, error } = await client
-            .from("Marketers")
+            .from("marketers")
             .select("*")
-            .order("id_Marketer", { ascending: false });
+            .order("id_marketer", { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            // محاولة جلب بالترتيب المعكوس في حال كان معرف id بالأحرف الكبيرة
+            const fallbackRes = await client.from("marketers").select("*");
+            if (fallbackRes.error) throw fallbackRes.error;
+            marketersList = fallbackRes.data || [];
+        } else {
+            marketersList = data || [];
+        }
 
-        marketersList = data || [];
         renderTable(marketersList);
     } catch (err) {
         console.error("خطأ في تحميل المسوقين:", err.message);
@@ -253,21 +264,27 @@ function renderTable(list) {
         html = `<tr><td colspan="8">لا يوجد مسوقين مسجلين حالياً</td></tr>`;
     } else {
         list.forEach(m => {
-            // تنسيق تاريخ الإنشاء
-            let formattedDate = m.date_created 
-                ? new Date(m.date_created).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) 
+            let id = getFieldValue(m, "id_Marketer", "id_marketer");
+            let name = getFieldValue(m, "client_name", "client_name");
+            let phone = getFieldValue(m, "Marketer_phone", "marketer_phone");
+            let whatsapp = getFieldValue(m, "Marketer_account_Whatsapp", "marketer_account_whatsapp");
+            let account = getFieldValue(m, "Marketer_account", "marketer_account");
+            let date = getFieldValue(m, "date_created", "date_created");
+
+            let formattedDate = date 
+                ? new Date(date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) 
                 : "-";
 
             html += `
             <tr>
-                <td>${m.id_Marketer}</td>
-                <td><b>${m.client_name || "-"}</b></td>
-                <td>${m.Marketer_phone || "-"}</td>
-                <td>${m.Marketer_account_Whatsapp || "-"}</td>
-                <td>${m.Marketer_account || "-"}</td>
+                <td>${id ?? "-"}</td>
+                <td><b>${name || "-"}</b></td>
+                <td>${phone || "-"}</td>
+                <td>${whatsapp || "-"}</td>
+                <td>${account || "-"}</td>
                 <td class="date-cell">${formattedDate}</td>
-                <td><button class="edit" onclick="editMarketer(${m.id_Marketer})">تعديل</button></td>
-                <td><button class="delete" onclick="deleteMarketer(${m.id_Marketer})">حذف</button></td>
+                <td><button class="edit" onclick="editMarketer(${id})">تعديل</button></td>
+                <td><button class="delete" onclick="deleteMarketer(${id})">حذف</button></td>
             </tr>`;
         });
     }
@@ -287,22 +304,23 @@ async function saveMarketer() {
     btnSave.disabled = true;
     btnSave.innerText = "جاري الحفظ...";
 
+    // إرسال الحقول بالحروف الصغيرة لتطابق نظام Postgres الافتراضي
     let payload = {
         client_name: client_name,
-        Marketer_phone: document.getElementById("Marketer_phone").value.trim() || null,
-        Marketer_account_Whatsapp: document.getElementById("Marketer_account_Whatsapp").value.trim() || null,
-        Marketer_account: document.getElementById("Marketer_account").value.trim() || null
+        marketer_phone: document.getElementById("Marketer_phone").value.trim() || null,
+        marketer_account_whatsapp: document.getElementById("Marketer_account_Whatsapp").value.trim() || null,
+        marketer_account: document.getElementById("Marketer_account").value.trim() || null
     };
 
     try {
         let error;
         if (edit_id === null) {
             // إضافة مسوق جديد
-            const res = await client.from("Marketers").insert([payload]);
+            const res = await client.from("marketers").insert([payload]);
             error = res.error;
         } else {
             // تحديث مسوق موجود
-            const res = await client.from("Marketers").update(payload).eq("id_Marketer", edit_id);
+            const res = await client.from("marketers").update(payload).eq("id_marketer", edit_id);
             error = res.error;
         }
 
@@ -321,13 +339,13 @@ async function saveMarketer() {
 
 // 4. تعبئة النموذج للتعديل
 function editMarketer(id) {
-    let m = marketersList.find(x => x.id_Marketer == id);
+    let m = marketersList.find(x => getFieldValue(x, "id_Marketer", "id_marketer") == id);
     if (!m) return;
 
-    document.getElementById("client_name").value = m.client_name || "";
-    document.getElementById("Marketer_phone").value = m.Marketer_phone || "";
-    document.getElementById("Marketer_account_Whatsapp").value = m.Marketer_account_Whatsapp || "";
-    document.getElementById("Marketer_account").value = m.Marketer_account || "";
+    document.getElementById("client_name").value = getFieldValue(m, "client_name", "client_name") || "";
+    document.getElementById("Marketer_phone").value = getFieldValue(m, "Marketer_phone", "marketer_phone") || "";
+    document.getElementById("Marketer_account_Whatsapp").value = getFieldValue(m, "Marketer_account_Whatsapp", "marketer_account_whatsapp") || "";
+    document.getElementById("Marketer_account").value = getFieldValue(m, "Marketer_account", "marketer_account") || "";
 
     edit_id = id;
     document.getElementById("btnSave").innerText = "تحديث البيانات";
@@ -338,7 +356,7 @@ function editMarketer(id) {
 async function deleteMarketer(id) {
     if (!confirm("هل أنت تأكد من حذف بيانات هذا المسوق؟")) return;
     try {
-        const { error } = await client.from("Marketers").delete().eq("id_Marketer", id);
+        const { error } = await client.from("marketers").delete().eq("id_marketer", id);
         if (error) throw error;
 
         loadMarketers();
@@ -350,10 +368,11 @@ async function deleteMarketer(id) {
 // 6. البحث في المسوقين
 function searchMarketer() {
     let word = document.getElementById("searchBox").value.toLowerCase();
-    let filtered = marketersList.filter(m =>
-        (m.client_name || "").toLowerCase().includes(word) ||
-        (m.Marketer_phone || "").toLowerCase().includes(word)
-    );
+    let filtered = marketersList.filter(m => {
+        let name = (getFieldValue(m, "client_name", "client_name") || "").toLowerCase();
+        let phone = (getFieldValue(m, "Marketer_phone", "marketer_phone") || "").toLowerCase();
+        return name.includes(word) || phone.includes(word);
+    });
     renderTable(filtered);
 }
 
