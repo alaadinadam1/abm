@@ -15,16 +15,16 @@
             body * {
                 visibility: hidden;
             }
-            #printArea, #printArea * {
+            #modalInvoiceCard, #modalInvoiceCard * {
                 visibility: visible;
             }
-            #printArea {
+            #modalInvoiceCard {
                 position: absolute;
                 left: 0;
                 top: 0;
                 width: 100%;
-                background: white;
-                padding: 20px;
+                box-shadow: none !important;
+                border: none !important;
             }
             .no-print {
                 display: none !important;
@@ -34,7 +34,8 @@
 </head>
 <body class="bg-gray-100 text-gray-800 p-4 md:p-8">
 
-    <div class="max-w-7xl mx-auto no-print">
+    <!-- الجدول الرئيسي -->
+    <div class="max-w-7xl mx-auto">
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
                 <h1 class="text-2xl font-bold">📦 لوحة التحكم: إدارة الطلبات</h1>
@@ -69,8 +70,42 @@
         </div>
     </div>
 
-    <!-- منطقة طباعة الفاتورة -->
-    <div id="printArea" class="hidden"></div>
+    <!-- النافذة المنبثقة للفاتورة Modal -->
+    <div id="invoiceModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden my-8 relative flex flex-col max-h-[90vh]">
+            
+            <!-- شريط رأس النافذة المنبثقة -->
+            <div class="bg-gray-900 text-white p-4 flex justify-between items-center no-print">
+                <h3 class="font-bold text-sm flex items-center gap-2">📄 معاينة الفاتورة الكاملة</h3>
+                <button onclick="closeInvoiceModal()" class="text-gray-400 hover:text-white font-bold text-lg px-2">✕</button>
+            </div>
+
+            <!-- محتوى الفاتورة الذي سيتم طباعته أو مشاركته -->
+            <div id="modalInvoiceCard" class="p-6 overflow-y-auto text-gray-800 space-y-4">
+                <!-- يتم حقن تصميم الفاتورة هنا عن طريق JavaScript -->
+            </div>
+
+            <!-- أزرار الإجراءات والمشاركة في أسفل النافذة -->
+            <div class="bg-gray-50 border-t p-4 flex flex-wrap gap-2 justify-between items-center no-print">
+                <button onclick="closeInvoiceModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-xl text-xs transition">
+                    إغلاق
+                </button>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button id="btnShareWhatsapp" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center gap-1 transition shadow-sm">
+                        💬 مشاركة واتساب
+                    </button>
+                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center gap-1 transition shadow-sm">
+                        📋 نسخ النص
+                    </button>
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1 transition shadow-sm">
+                        🖨️ طباعة الفاتورة
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
 
     <script>
         const supabaseClient = supabase.createClient(
@@ -79,6 +114,7 @@
         );
 
         let globalOrders = [];
+        let currentActiveOrder = null;
 
         // 1. جلب بيانات الطلبات
         async function fetchOrders() {
@@ -115,7 +151,7 @@
             }
         }
 
-        // 2. عرض الجدول المبسط
+        // 2. عرض الجدول الرئيسي
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             if (!orders || orders.length === 0) {
@@ -152,8 +188,8 @@
                     </td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
                     <td class="p-4 text-center">
-                        <button onclick="printInvoice(${order.id_web_order})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm transition">
-                            🖨️ طباعة الفاتورة
+                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm transition flex items-center gap-1 mx-auto">
+                            👁️ عرض وطباعة
                         </button>
                     </td>
                 </tr>`;
@@ -177,14 +213,15 @@
             }
         }
 
-        // 4. بناء وطباعة الفاتورة الشاملة
-        function printInvoice(orderId) {
+        // 4. فتح النافذة المنبثقة وعرض الفاتورة
+        function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) {
                 alert("تعذر العثور على بيانات الفاتورة!");
                 return;
             }
 
+            currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : '-';
 
             let itemsRows = '';
@@ -197,10 +234,10 @@
 
                     itemsRows += `
                         <tr class="border-b text-center">
-                            <td class="p-2 text-right font-semibold">${item.product_name || '-'}</td>
+                            <td class="p-2 text-right font-semibold text-gray-800">${item.product_name || '-'}</td>
                             <td class="p-2">${item.qte || 0}</td>
                             <td class="p-2">${Number(item.price || 0).toFixed(2)} ج.س</td>
-                            <td class="p-2 font-bold">${Number(itemTotal).toFixed(2)} ج.س</td>
+                            <td class="p-2 font-bold text-gray-900">${Number(itemTotal).toFixed(2)} ج.س</td>
                         </tr>
                     `;
                 });
@@ -209,37 +246,37 @@
             }
 
             const invoiceHtml = `
-                <div class="max-w-3xl mx-auto border border-gray-300 p-6 rounded-xl bg-white text-gray-800">
-                    <div class="flex justify-between items-center border-b pb-4 mb-4">
+                <div class="border border-gray-200 p-6 rounded-2xl bg-white space-y-4">
+                    <div class="flex justify-between items-center border-b pb-4">
                         <div>
-                            <h1 class="text-2xl font-extrabold text-blue-600">فاتورة مبيعات</h1>
+                            <h2 class="text-xl font-extrabold text-blue-600">🧾 فاتورة مبيعات</h2>
                             <p class="text-xs text-gray-500">رقم الطلب: #${order.id_web_order}</p>
                         </div>
-                        <div class="text-left text-xs text-gray-500">
+                        <div class="text-left text-xs text-gray-500 space-y-1">
                             <div><b>التاريخ:</b> ${date}</div>
-                            <div><b>حالة الطلب:</b> ${order.order_status || '-'}</div>
+                            <div><b>الحالة:</b> <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">${order.order_status || '-'}</span></div>
                         </div>
                     </div>
 
-                    <!-- 1. بيانات العميل -->
-                    <div class="bg-gray-50 p-4 rounded-lg mb-4 text-xs">
-                        <h2 class="font-bold text-sm mb-2 text-gray-700 border-b pb-1">بيانات العميل:</h2>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div><b>اسم العميل:</b> ${order.client_name || '-'}</div>
-                            <div><b>رقم العميل الأساسي:</b> ${order.client_phone || '-'}</div>
-                            <div><b>رقم العميل الاحتياطي:</b> ${order.client_second_phone || '-'}</div>
+                    <!-- بيانات العميل -->
+                    <div class="bg-gray-50 p-4 rounded-xl text-xs space-y-2">
+                        <h4 class="font-bold text-sm text-gray-700 border-b pb-1">👤 بيانات العميل:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-600">
+                            <div><b>الاسم:</b> ${order.client_name || '-'}</div>
+                            <div><b>الهاتف الأساسي:</b> ${order.client_phone || '-'}</div>
+                            <div><b>الهاتف الاحتياطي:</b> ${order.client_second_phone || '-'}</div>
                             <div><b>عنوان التوصيل:</b> ${order.client_address || '-'}</div>
                         </div>
                     </div>
 
-                    <!-- 2. جدول المنتجات والتفاصيل -->
-                    <table class="w-full text-xs border-collapse mb-4">
+                    <!-- جدول المنتجات -->
+                    <table class="w-full text-xs border-collapse">
                         <thead>
                             <tr class="bg-gray-100 border-b font-bold text-gray-700">
                                 <th class="p-2 text-right">اسم المنتج</th>
-                                <th class="p-2">العدد (الكمية)</th>
-                                <th class="p-2">السعر الفردي (القيمة)</th>
-                                <th class="p-2">الجملة</th>
+                                <th class="p-2">الكمية</th>
+                                <th class="p-2">السعر</th>
+                                <th class="p-2">الإجمالي</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -247,35 +284,72 @@
                         </tbody>
                     </table>
 
-                    <!-- 3. إجمالي المشتريات -->
-                    <div class="flex justify-end mb-4 text-xs">
-                        <div class="w-1/2 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <div class="flex justify-between font-extrabold text-blue-700 text-sm">
-                                <span>إجمالي المشتريات:</span>
-                                <span>${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
-                            </div>
+                    <!-- الإجمالي والعمولة -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-2">
+                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                            <div class="font-bold text-amber-800">💼 إجمالي عمولة الطلب:</div>
+                            <div class="text-base font-extrabold text-amber-900 mt-1">${Number(totalCommission).toFixed(2)} ج.س</div>
                         </div>
-                    </div>
-
-                    <!-- 4. بيانات المسوق والعمولة -->
-                    <div class="bg-amber-50 border border-amber-200 p-4 rounded-lg text-xs">
-                        <h2 class="font-bold text-sm mb-2 text-amber-800 border-b border-amber-200 pb-1">تفاصيل عمولة الطلب:</h2>
-                        <div class="grid grid-cols-2 gap-2 text-amber-900">
-                            <div><b>مجموع عمولة الطلب:</b> ${Number(totalCommission).toFixed(2)} ج.س</div>
+                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-col justify-center">
+                            <div class="font-bold text-blue-800">💰 إجمالي الفاتورة:</div>
+                            <div class="text-lg font-extrabold text-blue-900 mt-1">${Number(order.total_amount || 0).toFixed(2)} ج.س</div>
                         </div>
                     </div>
                 </div>
             `;
 
-            const printArea = document.getElementById('printArea');
-            printArea.innerHTML = invoiceHtml;
-            printArea.classList.remove('hidden');
+            document.getElementById('modalInvoiceCard').innerHTML = invoiceHtml;
+            
+            // إعداد رابط مشاركة الواتساب
+            const shareText = buildShareText(order, totalCommission);
+            const whatsappBtn = document.getElementById('btnShareWhatsapp');
+            whatsappBtn.onclick = () => {
+                const phone = order.client_phone ? order.client_phone.replace(/[^0-9]/g, '') : '';
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(shareText)}`, '_blank');
+            };
 
-            window.print();
+            document.getElementById('invoiceModal').classList.remove('hidden');
+        }
 
-            setTimeout(() => {
-                printArea.classList.add('hidden');
-            }, 500);
+        // 5. إغلاق النافذة المنبثقة
+        function closeInvoiceModal() {
+            document.getElementById('invoiceModal').classList.add('hidden');
+        }
+
+        // 6. تجميع نص الفاتورة للمشاركة
+        function buildShareText(order, commission) {
+            let text = `📦 *فاتورة طلبية جديدة #${order.id_web_order}*\n`;
+            text += `👤 *العميل:* ${order.client_name || '-'}\n`;
+            text += `📱 *الهاتف:* ${order.client_phone || '-'}\n`;
+            text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
+            text += `------------------------------\n`;
+            text += `🛒 *المنتجات:*\n`;
+
+            if (order.web_order_details && order.web_order_details.length > 0) {
+                order.web_order_details.forEach(item => {
+                    text += `• ${item.product_name} (${item.qte} × ${item.price}) = ${item.amount || (item.qte * item.price)} ج.س\n`;
+                });
+            }
+
+            text += `------------------------------\n`;
+            text += `💰 *الإجمالي النهائي:* ${Number(order.total_amount || 0).toFixed(2)} ج.س\n`;
+            return text;
+        }
+
+        // 7. نسخ نص الفاتورة كـ النص إلى الحافظة
+        function copyInvoiceText() {
+            if (!currentActiveOrder) return;
+            let totalCommission = 0;
+            if (currentActiveOrder.web_order_details) {
+                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
+            }
+            const text = buildShareText(currentActiveOrder, totalCommission);
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert("تم نسخ تفاصيل الفاتورة إلى الحافظة بنجاح!");
+            }).catch(err => {
+                alert("تعذر النسخ تلقائياً");
+            });
         }
 
         window.onload = fetchOrders;
