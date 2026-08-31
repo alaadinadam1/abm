@@ -16,7 +16,6 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <!-- شريط التواصل السريع -->
     <div class="bg-gray-900 text-white text-xs py-2 px-4 border-b border-gray-800">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
             <div class="font-semibold text-gray-300">
@@ -34,7 +33,6 @@
         </div>
     </div>
 
-    <!-- شريط التنقل العلوي -->
     <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div class="flex items-center gap-2">
@@ -48,7 +46,6 @@
         </div>
     </nav>
 
-    <!-- الهيدر الرئيسي -->
     <header class="relative bg-gray-900 text-white py-14 px-4 text-center">
         <div class="absolute inset-0 opacity-40 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000&auto=format&fit=crop');"></div>
         <div class="relative max-w-2xl mx-auto z-10">
@@ -58,7 +55,6 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-8">
-        <!-- شريط البحث والتصفية -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
             <h2 class="text-xl md:text-2xl font-bold">✨ المنتجات المتاحة</h2>
             <div class="w-full md:w-80">
@@ -66,27 +62,8 @@
             </div>
         </div>
         
-        <!-- شبكة المنتجات -->
         <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton">
-                <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
-                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
-            </div>
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton hidden sm:block">
-                <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
-                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
-            </div>
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton hidden md:block">
-                <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
-                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
-            </div>
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton hidden lg:block">
                 <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
                 <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                 <div class="h-4 bg-gray-200 rounded w-1/2"></div>
@@ -105,58 +82,43 @@
         let filteredProducts = [];
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
-        // تحويل بيانات BYTEA الثنائية بشكل آمن لمحتوى صورة صالح للمتصفح
-        function parseByteaImage(byteaData) {
-            const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
-            if (!byteaData) return fallbackImg;
-
-            try {
-                // إذا كان النص يبدأ برابط URL عادي
-                if (typeof byteaData === 'string' && (byteaData.startsWith('http://') || byteaData.startsWith('https://') || byteaData.startsWith('data:image'))) {
-                    return byteaData;
-                }
-
-                // إذا كانت البيانات قادمة كسلسلة Hex من PostgreSQL (تكون عادة \xFFD8...)
-                if (typeof byteaData === 'string') {
-                    let cleanHex = byteaData.startsWith('\\x') ? byteaData.substring(2) : byteaData;
-                    if (cleanHex.length > 0) {
-                        let bytes = new Uint8Array(cleanHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                        let binary = '';
-                        bytes.forEach((b) => binary += String.fromCharCode(b));
-                        return `data:image/jpeg;base64,${btoa(binary)}`;
-                    }
-                }
-            } catch (err) {
-                console.error("تعذر معالجة تنسيق الصورة الحالية:", err);
+        function parseImage(imgData) {
+            const fallback = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
+            if (!imgData) return fallback;
+            if (typeof imgData === 'string' && (imgData.startsWith('http') || imgData.startsWith('data:image'))) {
+                return imgData;
             }
-            return fallbackImg;
+            return fallback;
         }
 
         async function fetchProducts() {
             try {
-                // استعلام حقول جدول products المطابقة بالضبط لقاعدة البيانات
+                // طلب استعلام بسيط بدون تعقيدات أو شروط حجب
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, coasts_value, qte_in_stock, image_product, department")
-                    .gt("qte_in_stock", 0);
+                    .select("id_product, product_name, seal_price, pay_price, coasts_value, qte_in_stock, image_product, department");
 
-                if (error) throw error;
+                if (error) {
+                    console.error("خطأ Supabase:", error);
+                    alert("خطأ أثناء جلب البيانات: " + error.message);
+                    return;
+                }
+
+                console.log("البيانات القادمة من قاعدة البيانات:", data);
 
                 if (data && data.length > 0) {
                     products = data;
                     filteredProducts = data;
+                    renderProducts(filteredProducts);
                 } else {
-                    products = [];
-                    filteredProducts = [];
+                    document.getElementById("productsGrid").innerHTML = `
+                        <div class="col-span-full text-center py-12 text-gray-500 font-bold">
+                            ⚠️ الجدول فارغ أو أن صلاحيات RLS تمنع قراءة البيانات. أضف السياسة في Supabase لتظهر البيانات.
+                        </div>`;
                 }
-            } catch (error) {
-                console.warn("تعذر الجلب المباشر، سيتم الاعتماد على الوضع الاحتياطي:", error.message);
-                products = [
-                    { id_product: 101, product_name: "شورط كورة رياضي", seal_price: 650, qte_in_stock: 10 }
-                ];
-                filteredProducts = products;
+            } catch (err) {
+                console.error("خطأ غير متوقع:", err);
             }
-            renderProducts(filteredProducts);
             updateCartCount();
         }
 
@@ -169,23 +131,15 @@
             renderProducts(filteredProducts);
         }
 
-        function renderProducts(itemsToRender) {
+        function renderProducts(items) {
             let html = "";
             const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
 
-            if (itemsToRender.length === 0) {
-                document.getElementById("productsGrid").innerHTML = `
-                    <div class="col-span-full text-center py-12 text-gray-400 font-semibold">
-                        لا توجد منتجات متوفرة حالياً في المخزون.
-                    </div>`;
-                return;
-            }
-
-            itemsToRender.forEach(p => {
-                // تحديد السعر الصحيح (سعر البيع seal_price أو coasts_value كبديل)
-                let price = Number(p.seal_price) || Number(p.coasts_value) || 0;
-                let productName = p.product_name || "منتج غير مسمى";
-                let imgUrl = parseByteaImage(p.image_product);
+            items.forEach(p => {
+                // التحقق من الحقل الأنسب للسعر
+                let price = Number(p.seal_price) || Number(p.coasts_value) || Number(p.pay_price) || 0;
+                let productName = p.product_name || "منتج بدون اسم";
+                let imgUrl = parseImage(p.image_product);
 
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
@@ -209,7 +163,7 @@
             if (!product) return;
 
             const existingItem = cart.find(item => item.id_product === id);
-            let finalPrice = Number(product.seal_price) || Number(product.coasts_value) || 0;
+            let finalPrice = Number(product.seal_price) || Number(product.coasts_value) || Number(product.pay_price) || 0;
 
             if (existingItem) {
                 existingItem.quantity += 1;
