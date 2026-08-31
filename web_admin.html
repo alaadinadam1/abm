@@ -21,7 +21,7 @@
             <div class="space-y-3">
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">اسم المنطقة / المحافظة</label>
-                    <input type="text" id="inputRegionName" placeholder="مثال: السوق الكبير، القلعة ..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400">
+                    <input type="text" id="inputRegionName" placeholder="مثال: الخرطوم، بحري، أم درمان..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-500 mb-1">تكلفة الشحن (ج.س)</label>
@@ -53,10 +53,10 @@
         </div>
     </div>
 
-    <!-- ثالثاً: واجهة إدارة واعتماد الطلبات -->
+    <!-- ثالثاً: واجهة إدارة واعتماد الطلبات (جدول web_orders) -->
     <div class="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow">
         <h1 class="text-2xl font-bold text-slate-800 border-b pb-4 mb-6 flex justify-between items-center">
-            <span>📦 إدارة واعتماد طلبات المتجر أونلاين</span>
+            <span>📦 إدارة واعتماد طلبات المتجر (web_orders)</span>
             <button onclick="loadWebOrders()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl cursor-pointer">🔄 تحديث القائمة</button>
         </h1>
 
@@ -66,7 +66,8 @@
                     <tr class="bg-slate-800 text-white text-sm">
                         <th class="p-3 rounded-r-lg">رقم الطلب</th>
                         <th class="p-3">العميل</th>
-                        <th class="p-3">الهاتف</th>
+                        <th class="p-3">الهاتف الرئيسي</th>
+                        <th class="p-3">الهاتف البديل</th>
                         <th class="p-3">العنوان / المنطقة</th>
                         <th class="p-3">تكلفة الشحن</th>
                         <th class="p-3">إجمالي الطلب</th>
@@ -75,7 +76,7 @@
                     </tr>
                 </thead>
                 <tbody id="ordersTableBody" class="text-sm divide-y divide-gray-100">
-                    <tr><td colspan="8" class="p-8 text-gray-400">جاري تحميل الطلبات...</td></tr>
+                    <tr><td colspan="9" class="p-8 text-gray-400">جاري تحميل الطلبات...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -143,11 +144,12 @@
                 }
                 document.getElementById("shippingRegionsTableBody").innerHTML = html;
             } catch (err) { 
-                console.error("خطأ في قراءة إعدادات الشحن:", err); 
+                console.error("خطأ في قراءة إعدادات الشحن:", err);
+                document.getElementById("shippingRegionsTableBody").innerHTML = `<tr><td colspan="3" class="p-4 text-red-500">تأكد من إنشاء جدول shipping_settings في Supabase.</td></tr>`;
             }
         }
 
-        // 2. دالة حساب الشحن فقط للمنطقة (تطابق محسّن)
+        // 2. دالة حساب الشحن للمنطقة
         function getShippingCostForAddress(address) {
             if (!address) return 0;
             const cleanedAddress = address.trim().toLowerCase();
@@ -159,7 +161,7 @@
             return 0;
         }
 
-        // 3. إضافة/تعديل منطقة
+        // 3. إضافة/تعديل منطقة شحن
         async function addOrUpdateRegion() {
             const regionName = document.getElementById("inputRegionName").value.trim();
             const shippingCost = parseFloat(document.getElementById("inputRegionCost").value);
@@ -206,7 +208,7 @@
             }
         }
 
-        // 5. جلب وعرض طلبات المتجر
+        // 5. جلب وعرض طلبات الموقع من جدول web_orders
         async function loadWebOrders() {
             try {
                 const { data, error } = await supabaseClient
@@ -220,7 +222,7 @@
                 let html = "";
 
                 if (loadedOrdersCache.length === 0) {
-                    html = `<tr><td colspan="8" class="p-8 text-gray-400">لا توجد طلبات جديدة حالياً.</td></tr>`;
+                    html = `<tr><td colspan="9" class="p-8 text-gray-400">لا توجد طلبات جديدة حالياً.</td></tr>`;
                 } else {
                     loadedOrdersCache.forEach(o => {
                         let isApproved = o.order_status === "تم الاعتماد والتوصيل";
@@ -228,12 +230,14 @@
                         
                         let shippingCost = getShippingCostForAddress(o.client_address);
                         let totalAmount = Number(o.total_amount || 0);
+                        let secondPhone = o.client_second_phone ? escapeHtml(o.client_second_phone) : '-';
 
                         html += `
                         <tr class="hover:bg-slate-50">
                             <td class="p-3 font-bold text-blue-600">#${o.id_web_order}</td>
                             <td class="p-3 font-semibold">${escapeHtml(o.client_name)}</td>
                             <td class="p-3">${escapeHtml(o.client_phone)}</td>
+                            <td class="p-3 text-gray-500">${secondPhone}</td>
                             <td class="p-3 text-right max-w-xs truncate" title="${escapeHtml(o.client_address)}">${escapeHtml(o.client_address)}</td>
                             <td class="p-3 font-semibold text-orange-600">${shippingCost.toFixed(2)} ج.س</td>
                             <td class="p-3 font-bold text-emerald-600">${totalAmount.toFixed(2)} ج.س</td>
@@ -254,7 +258,7 @@
             }
         }
 
-        // 6. معاينة الفاتورة
+        // 6. معاينة الفاتورة للطلب
         async function previewAndPrepareInvoice(orderId) {
             const order = loadedOrdersCache.find(item => item.id_web_order === orderId);
             if (!order) return alert("تعذر العثور على معلومات الطلب");
@@ -277,7 +281,8 @@
             }
 
             let rows = "";
-            let shareText = `🧾 فاتورة طلب أونلاين رقم: #${orderId}\n👤 العميل: ${order.client_name}\n📞 الهاتف: ${order.client_phone}\n📍 العنوان: ${order.client_address}\n\n📦 المنتجات المطلوبة:\n`;
+            let secondPhoneText = order.client_second_phone ? ` | بديل: ${order.client_second_phone}` : '';
+            let shareText = `🧾 فاتورة طلب أونلاين رقم: #${orderId}\n👤 العميل: ${order.client_name}\n📞 الهاتف: ${order.client_phone}${secondPhoneText}\n📍 العنوان: ${order.client_address}\n\n📦 المنتجات المطلوبة:\n`;
 
             items.forEach(i => {
                 rows += `
@@ -290,7 +295,7 @@
                 shareText += `- ${i.product_name} (الكمية: ${i.qte} | السعر: ${money(i.price)} ج.س)\n`;
             });
 
-            shareText += `\n💵 مجموع المنتجات: ${money(productsTotal)} ج.س\n🚚 رسوم الشحن: ${money(shippingCost)} ج.س\n💰 الإجمالي النهائي: ${money(grandTotal)} ج.س\n🌹 شكراً لتعاملك مع مؤسسة ABM!`;
+            shareText += `\n💵 مجموع المنتجات: ${money(productsTotal)} ج.س\n🚚 رسوم الشحن: ${money(shippingCost)} ج.س\n💰 الإجمالي النهائي: ${money(grandTotal)} ج.س\n🌹 شكراً لتعاملك معنا!`;
 
             const dateObj = new Date(order.date_created);
             const formattedDate = dateObj.toLocaleDateString("ar-EG");
@@ -307,7 +312,7 @@
                         <span>${formattedDate}</span>
                     </div>
                     <div>👤 <b>العميل :</b> ${escapeHtml(order.client_name)}</div>
-                    <div>📞 <b>الهاتف :</b> ${escapeHtml(order.client_phone)}</div>
+                    <div>📞 <b>الهاتف :</b> ${escapeHtml(order.client_phone)} ${order.client_second_phone ? ` / ${escapeHtml(order.client_second_phone)}` : ''}</div>
                     <div style="font-size:10px; color:#555;">📍 <b>العنوان :</b> ${escapeHtml(order.client_address)}</div>
                 </div>
                 <table style="width:100%; border-collapse:collapse; font-size:10px;">
@@ -370,7 +375,7 @@
             modal.classList.remove("flex");
         }
 
-        // 7. اعتماد الطلب وخصم الكميات
+        // 7. اعتماد الطلب وخصم الكميات من المخزن
         async function approveAndDeductStock(webOrderId) {
             const order = loadedOrdersCache.find(item => item.id_web_order === webOrderId);
             if (!order) return alert("تعذر العثور على معلومات الطلب");
@@ -409,7 +414,7 @@
                         price: Number(item.price), 
                         descount: 0, 
                         amount: Number(item.amount), 
-                        total_amount: Number(item.amount), // تم تعديلها لتأخذ قيمة العنصر الفعلي فقط بدلاً من إجمالي الفاتورة
+                        total_amount: Number(item.amount),
                         id_customer: fallbackCustomerId, 
                         date_order: currentDateTime, 
                         pay_method: "cash",
@@ -437,7 +442,7 @@
             }
         }
 
-        // 8. حذف الطلب
+        // 8. حذف الطلب من web_orders
         async function deleteOrder(id) {
             if (!confirm("هل أنت متأكد من حذف الطلب نهائياً؟")) return;
             try {
