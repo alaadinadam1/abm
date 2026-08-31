@@ -228,18 +228,6 @@ const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 let edit_id = null;
 let marketersList = [];
 
-// استخراج قيمة حقل بغض النظر عن حالة الأحرف
-function getValue(item, key) {
-    if (!item) return null;
-    const lowerKey = key.toLowerCase();
-    for (let k of Object.keys(item)) {
-        if (k.toLowerCase() === lowerKey) {
-            return item[k];
-        }
-    }
-    return null;
-}
-
 // 1. تحميل بيانات المسوقين من Supabase
 async function loadMarketers() {
     try {
@@ -251,12 +239,8 @@ async function loadMarketers() {
 
         marketersList = data || [];
         
-        // ترتيب البيانات محلياً لتجنب خطأ اسم العمود الفرز
-        marketersList.sort((a, b) => {
-            let idA = getValue(a, "id_marketer") || 0;
-            let idB = getValue(b, "id_marketer") || 0;
-            return idB - idA;
-        });
+        // ترتيب المسوقين حسب ID تنازلياً
+        marketersList.sort((a, b) => (b.id_Marketer || b.id_marketer || 0) - (a.id_Marketer || a.id_marketer || 0));
 
         renderTable(marketersList);
     } catch (err) {
@@ -271,12 +255,12 @@ function renderTable(list) {
         html = `<tr><td colspan="8">لا يوجد مسوقين مسجلين حالياً</td></tr>`;
     } else {
         list.forEach(m => {
-            let id = getValue(m, "id_marketer");
-            let name = getValue(m, "client_name");
-            let phone = getValue(m, "marketer_phone");
-            let whatsapp = getValue(m, "marketer_account_whatsapp");
-            let account = getValue(m, "marketer_account");
-            let date = getValue(m, "date_created");
+            let id = m.id_Marketer ?? m.id_marketer;
+            let name = m.client_name;
+            let phone = m.Marketer_phone ?? m.marketer_phone;
+            let whatsapp = m.Marketer_account_Whatsapp ?? m.marketer_account_whatsapp;
+            let account = m.Marketer_account ?? m.marketer_account;
+            let date = m.date_created;
 
             let formattedDate = date 
                 ? new Date(date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) 
@@ -315,15 +299,12 @@ async function saveMarketer() {
     const whatsappVal = document.getElementById("Marketer_account_Whatsapp").value.trim();
     const accountVal = document.getElementById("Marketer_account").value.trim();
 
-    // تجهيز كائن البيانات باستخدام أسماء الأعمدة المزدوجة لتفادي الـ 400 Bad Request
+    // تجهيز كائن البيانات الدقيق جداً بدون أعمدة وهمية
     let payload = {
         client_name: client_name,
-        marketer_phone: phoneVal ? phoneVal : null,
-        marketer_account_whatsapp: whatsappVal ? whatsappVal : null,
-        marketer_account: accountVal ? accountVal : null,
-        Marketer_phone: phoneVal ? phoneVal : null,
-        Marketer_account_Whatsapp: whatsappVal ? whatsappVal : null,
-        Marketer_account: accountVal ? accountVal : null
+        Marketer_phone: phoneVal || null,
+        Marketer_account_Whatsapp: whatsappVal || null,
+        Marketer_account: accountVal || null
     };
 
     try {
@@ -332,11 +313,11 @@ async function saveMarketer() {
             // إضافة مسوق جديد
             res = await client.from("marketers").insert([payload]);
         } else {
-            // تحديث مسوق
-            // تجربة التحديث باستخدام الحروف الصغيرة أولاً ثم الكبيرة إن لزم
-            res = await client.from("marketers").update(payload).eq("id_marketer", edit_id);
+            // تحديث مسوق موجود
+            res = await client.from("marketers").update(payload).eq("id_Marketer", edit_id);
             if (res.error) {
-                res = await client.from("marketers").update(payload).eq("id_Marketer", edit_id);
+                // محاولة بحروف صغيرة للـ ID فقط إن لزم الأمر
+                res = await client.from("marketers").update(payload).eq("id_marketer", edit_id);
             }
         }
 
@@ -347,7 +328,7 @@ async function saveMarketer() {
         loadMarketers();
     } catch (err) {
         alert("خطأ أثناء الحفظ: " + err.message);
-        console.error(err);
+        console.error("تفاصيل الخطأ كاملة:", err);
     } finally {
         btnSave.disabled = false;
         btnSave.innerText = "حفظ البيانات";
@@ -356,13 +337,13 @@ async function saveMarketer() {
 
 // 4. تعبئة النموذج للتعديل
 function editMarketer(id) {
-    let m = marketersList.find(x => getValue(x, "id_marketer") == id);
+    let m = marketersList.find(x => (x.id_Marketer ?? x.id_marketer) == id);
     if (!m) return;
 
-    document.getElementById("client_name").value = getValue(m, "client_name") || "";
-    document.getElementById("Marketer_phone").value = getValue(m, "marketer_phone") || "";
-    document.getElementById("Marketer_account_Whatsapp").value = getValue(m, "marketer_account_whatsapp") || "";
-    document.getElementById("Marketer_account").value = getValue(m, "marketer_account") || "";
+    document.getElementById("client_name").value = m.client_name || "";
+    document.getElementById("Marketer_phone").value = m.Marketer_phone ?? m.marketer_phone ?? "";
+    document.getElementById("Marketer_account_Whatsapp").value = m.Marketer_account_Whatsapp ?? m.marketer_account_whatsapp ?? "";
+    document.getElementById("Marketer_account").value = m.Marketer_account ?? m.marketer_account ?? "";
 
     edit_id = id;
     document.getElementById("btnSave").innerText = "تحديث البيانات";
@@ -373,9 +354,9 @@ function editMarketer(id) {
 async function deleteMarketer(id) {
     if (!confirm("هل أنت تأكد من حذف بيانات هذا المسوق؟")) return;
     try {
-        let res = await client.from("marketers").delete().eq("id_marketer", id);
+        let res = await client.from("marketers").delete().eq("id_Marketer", id);
         if (res.error) {
-            res = await client.from("marketers").delete().eq("id_Marketer", id);
+            res = await client.from("marketers").delete().eq("id_marketer", id);
         }
         if (res.error) throw res.error;
 
@@ -389,8 +370,8 @@ async function deleteMarketer(id) {
 function searchMarketer() {
     let word = document.getElementById("searchBox").value.toLowerCase();
     let filtered = marketersList.filter(m => {
-        let name = (getValue(m, "client_name") || "").toLowerCase();
-        let phone = (getValue(m, "marketer_phone") || "").toLowerCase();
+        let name = (m.client_name || "").toLowerCase();
+        let phone = (m.Marketer_phone ?? m.marketer_phone || "").toLowerCase();
         return name.includes(word) || phone.includes(word);
     });
     renderTable(filtered);
