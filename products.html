@@ -19,7 +19,7 @@ padding:10px;
 }
 
 .container{
-max-width:1000px;
+max-width:1100px;
 margin:auto;
 background:white;
 padding:15px;
@@ -54,6 +54,27 @@ font-size:14px;
 box-sizing: border-box;
 }
 
+.file-input-wrapper {
+grid-column: span 1;
+display: flex;
+flex-direction: column;
+gap: 5px;
+}
+
+@media(min-width:768px){
+.file-input-wrapper {
+grid-column: span 3;
+}
+}
+
+.img-preview {
+width: 60px;
+hight: 60px;
+object-fit: cover;
+border-radius: 5px;
+border: 1px solid #ddd;
+}
+
 button{
 padding:10px;
 border:none;
@@ -86,7 +107,7 @@ overflow-x:auto;
 }
 
 table{
-min-width:600px;
+min-width:700px;
 width:100%;
 margin-top:20px;
 border-collapse:collapse;
@@ -97,6 +118,7 @@ border:1px solid #ddd;
 padding:8px;
 text-align:center;
 font-size:13px;
+vertical-align: middle;
 }
 
 th{
@@ -148,11 +170,20 @@ color:white;
 
 <input id="department" placeholder="القسم">
 
+<!-- إدخال ومعاينة الصورة -->
+<div class="file-input-wrapper">
+  <label style="font-size: 12px; font-weight: bold; color: #555;">صورة المنتج:</label>
+  <div style="display: flex; gap: 10px; align-items: center;">
+      <input type="file" id="image_file" accept="image/*" onchange="previewImage(event)">
+      <img id="image_preview" src="" style="display:none; width: 50px; height: 50px; border-radius: 5px; object-fit: cover;">
+  </div>
+</div>
+
 </div>
 
 <br>
 
-<button class="save" onclick="saveProduct()">حفظ المنتج</button>
+<button class="save" id="btnSave" onclick="saveProduct()">حفظ المنتج</button>
 
 <div class="table-container">
 <table>
@@ -160,6 +191,7 @@ color:white;
 <thead>
 <tr>
 <th>ID</th>
+<th>الصورة</th>
 <th>المنتج</th>
 <th>المخزون</th>
 <th>سعر البيع</th>
@@ -185,6 +217,28 @@ const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 let edit_id = null;
 let products = [];
 let categories = []; 
+let currentBase64Image = null;
+
+// تحويل ملف الصورة إلى نص Base64
+function convertFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+// معاينة الصورة المختارة
+async function previewImage(event) {
+    const file = event.target.files[0];
+    const preview = document.getElementById("image_preview");
+    if (file) {
+        currentBase64Image = await convertFileToBase64(file);
+        preview.src = currentBase64Image;
+        preview.style.display = "block";
+    }
+}
 
 // 1. تحميل الأصناف من Supabase
 async function loadCategories(){
@@ -221,13 +275,17 @@ async function loadProducts(){
 // 3. عرض جدول المنتجات
 function renderTable(list){
     let html = "";
+    const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=100";
+
     list.forEach(p => {
         const catObj = categories.find(c => c.id_cat == p.id_cat);
         const catName = catObj ? (catObj.description_cat || catObj.name_cat) : (p.id_cat || "غير محدد");
+        const imgSrc = (p.image_product && typeof p.image_product === 'string') ? p.image_product : fallbackImg;
 
         html += `
         <tr>
         <td>${p.id_product}</td>
+        <td><img src="${imgSrc}" class="img-preview" onerror="this.src='${fallbackImg}'"></td>
         <td>${p.product_name || ""}</td>
         <td>${p.qte_in_stock || 0}</td>
         <td>${p.seal_price || 0}</td>
@@ -241,6 +299,10 @@ function renderTable(list){
 
 // 4. حفظ أو تعديل المنتج في Supabase
 async function saveProduct(){
+    const btn = document.getElementById("btnSave");
+    btn.disabled = true;
+    btn.innerText = "جاري الحفظ...";
+
     let payQte = Number(document.getElementById("pay_qte").value) || 0;
     let piceQte = Number(document.getElementById("pice_qte").value) || 0;
     
@@ -264,6 +326,11 @@ async function saveProduct(){
         department: document.getElementById("department").value || null
     };
 
+    // إضافة الصورة للحمولة فقط في حال تم تحديد صورة جديدة
+    if (currentBase64Image) {
+        payload.image_product = currentBase64Image;
+    }
+
     try {
         let error;
         if(edit_id == null){
@@ -284,6 +351,9 @@ async function saveProduct(){
         loadProducts();
     } catch(err) {
         alert("خطأ أثناء الحفظ: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "حفظ المنتج";
     }
 }
 
@@ -306,6 +376,17 @@ function editProduct(id){
     document.getElementById("coasts_value").value = p.coasts_value || "";
     document.getElementById("id_cat").value = p.id_cat || "";
     document.getElementById("department").value = p.department || "";
+
+    // عرض معاينة الصورة المحفوظة مسبقاً
+    const preview = document.getElementById("image_preview");
+    if (p.image_product && typeof p.image_product === 'string') {
+        preview.src = p.image_product;
+        preview.style.display = "block";
+        currentBase64Image = p.image_product;
+    } else {
+        preview.style.display = "none";
+        currentBase64Image = null;
+    }
 
     edit_id = id;
 }
@@ -336,6 +417,9 @@ function searchProduct(){
 function clearForm(){
     document.querySelectorAll(".grid input").forEach(i => i.value = "");
     document.getElementById("id_cat").value = "";
+    document.getElementById("image_file").value = "";
+    document.getElementById("image_preview").style.display = "none";
+    currentBase64Image = null;
     edit_id = null;
 }
 
