@@ -156,6 +156,8 @@ color:white;
 
 <input id="seal_price" type="number" placeholder="سعر البيع">
 
+<input id="commission" type="number" placeholder="العمولة">
+
 <input id="pay_date" type="date">
 
 <input id="expare_date" type="date">
@@ -319,7 +321,6 @@ function renderTable(list){
     list.forEach(p => {
         const catObj = categories.find(c => c.id_cat == p.id_cat);
         const catName = catObj ? (catObj.description_cat || catObj.name_cat) : (p.id_cat || "غير محدد");
-        // استخدام image_url بدلاً من image_product
         const imgSrc = (p.image_url && typeof p.image_url === 'string' && p.image_url.length > 5) ? p.image_url : fallbackImg;
 
         html += `
@@ -358,6 +359,7 @@ async function saveProduct(){
         qte_in_stock: stockCalculated,
         pay_price: Number(document.getElementById("pay_price").value) || 0,
         seal_price: Number(document.getElementById("seal_price").value) || 0,
+        commission: Number(document.getElementById("commission").value) || 0,
         pay_date: document.getElementById("pay_date").value || null,
         expare_date: document.getElementById("expare_date").value || null,
         req_id: document.getElementById("req_id").value || null,
@@ -366,7 +368,6 @@ async function saveProduct(){
         department: document.getElementById("department").value || null
     };
 
-    // التعديل الرئيسي: إرسال القيمة تحت اسم العمود الصحيح image_url
     if (imageChanged && currentBase64Image) {
         payload.image_url = currentBase64Image;
     }
@@ -396,7 +397,7 @@ async function saveProduct(){
     }
 }
 
-// 5. تعبئة النموذج للتعديل (تم استخدام image_url)
+// 5. تعبئة النموذج للتعديل
 function editProduct(id){
     let p = products.find(x => x.id_product == id);
     if(!p) return;
@@ -407,6 +408,7 @@ function editProduct(id){
     document.getElementById("qte_in_stock").value = p.qte_in_stock || "";
     document.getElementById("pay_price").value = p.pay_price || "";
     document.getElementById("seal_price").value = p.seal_price || "";
+    document.getElementById("commission").value = p.commission || "";
     
     if(p.pay_date) document.getElementById("pay_date").value = p.pay_date.split('T')[0];
     if(p.expare_date) document.getElementById("expare_date").value = p.expare_date.split('T')[0];
@@ -416,7 +418,6 @@ function editProduct(id){
     document.getElementById("id_cat").value = p.id_cat || "";
     document.getElementById("department").value = p.department || "";
 
-    // قراءة الصورة من حقل image_url
     const preview = document.getElementById("image_preview");
     if (p.image_url && typeof p.image_url === 'string' && p.image_url.length > 5) {
         preview.src = p.image_url;
