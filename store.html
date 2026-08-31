@@ -16,7 +16,7 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <!-- شريط التواصل السريع أعلى الشاشة -->
+    <!-- شريط التواصل السريع -->
     <div class="bg-gray-900 text-white text-xs py-2 px-4 border-b border-gray-800">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
             <div class="font-semibold text-gray-300">
@@ -48,7 +48,7 @@
         </div>
     </nav>
 
-    <!-- الهيدر والواجهة الرئيسية -->
+    <!-- الهيدر الرئيسي -->
     <header class="relative bg-gray-900 text-white py-14 px-4 text-center">
         <div class="absolute inset-0 opacity-40 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000&auto=format&fit=crop');"></div>
         <div class="relative max-w-2xl mx-auto z-10">
@@ -105,48 +105,52 @@
         let filteredProducts = [];
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
-        // دالة معالجة واستخراج رابط الصورة من bytea أو النصوص العادية
-        function getProductImageUrl(imgData) {
+        // تحويل بيانات BYTEA الثنائية بشكل آمن لمحتوى صورة صالح للمتصفح
+        function parseByteaImage(byteaData) {
             const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
-            if (!imgData) return fallbackImg;
+            if (!byteaData) return fallbackImg;
 
-            // في حال تم تخزين الرابط كنص عادي (URL)
-            if (typeof imgData === 'string' && (imgData.startsWith('http://') || imgData.startsWith('https://'))) {
-                return imgData;
-            }
-
-            // في حال تم تخزين الصورة كبيانات Bytea/Base64
             try {
-                if (typeof imgData === 'string' && imgData.startsWith('\\x')) {
-                    // تحويل السلسلة الستة عشرية إلى Base64
-                    const hexStr = imgData.substring(2);
-                    const bytes = new Uint8Array(hexStr.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                    let binary = '';
-                    bytes.forEach((b) => binary += String.fromCharCode(b));
-                    return `data:image/jpeg;base64,${btoa(binary)}`;
+                // إذا كان النص يبدأ برابط URL عادي
+                if (typeof byteaData === 'string' && (byteaData.startsWith('http://') || byteaData.startsWith('https://') || byteaData.startsWith('data:image'))) {
+                    return byteaData;
                 }
-            } catch (e) {
-                console.error("خطأ تحويل الصورة:", e);
-            }
 
+                // إذا كانت البيانات قادمة كسلسلة Hex من PostgreSQL (تكون عادة \xFFD8...)
+                if (typeof byteaData === 'string') {
+                    let cleanHex = byteaData.startsWith('\\x') ? byteaData.substring(2) : byteaData;
+                    if (cleanHex.length > 0) {
+                        let bytes = new Uint8Array(cleanHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                        let binary = '';
+                        bytes.forEach((b) => binary += String.fromCharCode(b));
+                        return `data:image/jpeg;base64,${btoa(binary)}`;
+                    }
+                }
+            } catch (err) {
+                console.error("تعذر معالجة تنسيق الصورة الحالية:", err);
+            }
             return fallbackImg;
         }
 
         async function fetchProducts() {
             try {
+                // استعلام حقول جدول products المطابقة بالضبط لقاعدة البيانات
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, qte_in_stock, image_product, department")
+                    .select("id_product, product_name, seal_price, coasts_value, qte_in_stock, image_product, department")
                     .gt("qte_in_stock", 0);
-                
-                if (!error && data && data.length > 0) {
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
                     products = data;
                     filteredProducts = data;
                 } else {
-                    throw new Error("بيانات فارغة أو خطأ بالاتصال");
+                    products = [];
+                    filteredProducts = [];
                 }
             } catch (error) {
-                console.warn("استخدام بيانات احتياطية عند تعثر الاتصال:", error.message);
+                console.warn("تعذر الجلب المباشر، سيتم الاعتماد على الوضع الاحتياطي:", error.message);
                 products = [
                     { id_product: 101, product_name: "شورط كورة رياضي", seal_price: 650, qte_in_stock: 10 }
                 ];
@@ -167,21 +171,22 @@
 
         function renderProducts(itemsToRender) {
             let html = "";
-            const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500"; 
+            const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
 
             if (itemsToRender.length === 0) {
                 document.getElementById("productsGrid").innerHTML = `
                     <div class="col-span-full text-center py-12 text-gray-400 font-semibold">
-                        لا توجد منتجات مطابقة للبحث أو المتاحة حالياً.
+                        لا توجد منتجات متوفرة حالياً في المخزون.
                     </div>`;
                 return;
             }
 
             itemsToRender.forEach(p => {
-                let price = Number(p.seal_price) || 0;
+                // تحديد السعر الصحيح (سعر البيع seal_price أو coasts_value كبديل)
+                let price = Number(p.seal_price) || Number(p.coasts_value) || 0;
                 let productName = p.product_name || "منتج غير مسمى";
-                let imgUrl = getProductImageUrl(p.image_product);
-                
+                let imgUrl = parseByteaImage(p.image_product);
+
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
                     <img src="${imgUrl}" alt="${productName}" class="w-full h-48 object-cover rounded-xl bg-gray-100 mb-3" loading="lazy" onerror="this.src='${fallbackImg}'">
@@ -204,13 +209,15 @@
             if (!product) return;
 
             const existingItem = cart.find(item => item.id_product === id);
+            let finalPrice = Number(product.seal_price) || Number(product.coasts_value) || 0;
+
             if (existingItem) {
                 existingItem.quantity += 1;
             } else {
                 cart.push({ 
                     id_product: product.id_product,
                     product_name: product.product_name,
-                    seal_price: Number(product.seal_price) || 0,
+                    seal_price: finalPrice,
                     quantity: 1 
                 });
             }
