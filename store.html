@@ -82,29 +82,20 @@
         let filteredProducts = [];
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
-        function parseImage(imgData) {
-            const fallback = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
-            if (!imgData) return fallback;
-            if (typeof imgData === 'string' && (imgData.startsWith('http') || imgData.startsWith('data:image'))) {
-                return imgData;
-            }
-            return fallback;
-        }
-
         async function fetchProducts() {
             try {
-                // طلب استعلام بسيط بدون تعقيدات أو شروط حجب
+                // استبعاد حقل image_product لتجنب خطأ 400 الناجم عن نوع البيانات BYTEA
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, pay_price, coasts_value, qte_in_stock, image_product, department");
+                    .select("id_product, product_name, seal_price, pay_price, coasts_value, qte_in_stock, department");
 
                 if (error) {
-                    console.error("خطأ Supabase:", error);
-                    alert("خطأ أثناء جلب البيانات: " + error.message);
+                    console.error("تفاصيل خطأ Supabase:", error);
+                    alert("خطأ Supabase: " + error.message);
                     return;
                 }
 
-                console.log("البيانات القادمة من قاعدة البيانات:", data);
+                console.log("تم جلب البيانات بنجاح:", data);
 
                 if (data && data.length > 0) {
                     products = data;
@@ -113,11 +104,11 @@
                 } else {
                     document.getElementById("productsGrid").innerHTML = `
                         <div class="col-span-full text-center py-12 text-gray-500 font-bold">
-                            ⚠️ الجدول فارغ أو أن صلاحيات RLS تمنع قراءة البيانات. أضف السياسة في Supabase لتظهر البيانات.
+                            ⚠️ لم يتم العثور على أي منتجات في الجدول.
                         </div>`;
                 }
             } catch (err) {
-                console.error("خطأ غير متوقع:", err);
+                console.error("خطأ بالنظام:", err);
             }
             updateCartCount();
         }
@@ -136,14 +127,12 @@
             const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
 
             items.forEach(p => {
-                // التحقق من الحقل الأنسب للسعر
                 let price = Number(p.seal_price) || Number(p.coasts_value) || Number(p.pay_price) || 0;
                 let productName = p.product_name || "منتج بدون اسم";
-                let imgUrl = parseImage(p.image_product);
 
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
-                    <img src="${imgUrl}" alt="${productName}" class="w-full h-48 object-cover rounded-xl bg-gray-100 mb-3" loading="lazy" onerror="this.src='${fallbackImg}'">
+                    <img src="${fallbackImg}" alt="${productName}" class="w-full h-48 object-cover rounded-xl bg-gray-100 mb-3" loading="lazy">
                     <div class="flex-1 flex flex-col justify-between gap-2">
                         <div>
                             <h3 class="font-bold text-gray-800 text-sm line-clamp-2">${productName}</h3>
