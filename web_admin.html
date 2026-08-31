@@ -10,7 +10,7 @@
     <style>
         body { font-family: 'Cairo', sans-serif; }
         
-        /* تنسيقات الطباعة الخاصة بالفاتورة */
+        /* تنسيقات الطباعة */
         @media print {
             body * {
                 visibility: hidden;
@@ -37,8 +37,8 @@
     <div class="max-w-7xl mx-auto no-print">
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
-                <h1 class="text-2xl font-bold">📦 لوحة التحكم: إدارة الطلبات الشاملة</h1>
-                <p class="text-xs text-gray-500">متابعة طلبات العميل وتحديث حالات الشحن والجاهزية</p>
+                <h1 class="text-2xl font-bold">📦 لوحة التحكم: إدارة الطلبات</h1>
+                <p class="text-xs text-gray-500">متابعة طلبات العملاء وطباعة الفواتير</p>
             </div>
             <button onclick="fetchOrders()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition">
                 🔄 تحديث قائمة الطلبات
@@ -53,17 +53,15 @@
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">اسم العميل والهاتف</th>
                             <th class="p-4">عنوان التوصيل</th>
-                            <th class="p-4">تفاصيل المنتجات</th>
                             <th class="p-4">المبلغ الإجمالي</th>
-                            <th class="p-4">بيانات المسوق</th>
                             <th class="p-4">حالة الطلب</th>
                             <th class="p-4">تاريخ الطلب</th>
-                            <th class="p-4">خيارات</th>
+                            <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="9" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -71,7 +69,7 @@
         </div>
     </div>
 
-    <!-- منطقة معاينة وطباعة الفاتورة (مخفية شاشات وتظهر عند الطباعة/المعاينة) -->
+    <!-- منطقة طباعة الفاتورة -->
     <div id="printArea" class="hidden"></div>
 
     <script>
@@ -82,6 +80,7 @@
 
         let globalOrders = [];
 
+        // 1. جلب بيانات الطلبات
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -95,15 +94,13 @@
                         total_amount,
                         order_status,
                         date_created,
-                        marketer_name,
-                        marketer_commission,
-                        marketer_account,
                         web_order_details (
                             id_product,
                             product_name,
                             qte,
                             price,
-                            amount
+                            amount,
+                            commission
                         )
                     `)
                     .order('date_created', { ascending: false });
@@ -114,32 +111,21 @@
 
             } catch (err) {
                 console.error("خطأ عند جلب الطلبات:", err);
-                alert("فشل جلب البيانات: " + err.message);
+                alert("فشل جلب البيانات: " + (err.message || JSON.stringify(err)));
             }
         }
 
+        // 2. عرض الجدول المبسط
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             if (!orders || orders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="text-center p-8 text-gray-500">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">لا توجد طلبات مسجلة حالياً.</td></tr>`;
                 return;
             }
 
             let html = '';
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
-                
-                let detailsHtml = '';
-                if (order.web_order_details && order.web_order_details.length > 0) {
-                    detailsHtml = order.web_order_details.map(d => 
-                        `<div class="mb-1">
-                            • <span class="font-bold">${d.product_name}</span> 
-                            <span class="text-gray-500">(${d.qte} × ${d.price})</span>
-                        </div>`
-                    ).join('');
-                } else {
-                    detailsHtml = '<span class="text-gray-400">لا توجد تفاصيل</span>';
-                }
 
                 html += `
                 <tr class="border-b hover:bg-gray-50 transition">
@@ -154,15 +140,7 @@
                     <td class="p-4 text-xs font-medium text-gray-700">
                         ${order.client_address || 'لم يحدد'}
                     </td>
-                    <td class="p-4 text-xs bg-gray-50 rounded-lg max-w-xs">
-                        ${detailsHtml}
-                    </td>
                     <td class="p-4 font-bold text-blue-600">${Number(order.total_amount || 0).toFixed(2)} ج.س</td>
-                    <td class="p-4 text-xs">
-                        <div><b>المسوق:</b> ${order.marketer_name || '-'}</div>
-                        <div><b>العمولة:</b> ${order.marketer_commission || 0} ج.س</div>
-                        <div><b>الحساب:</b> ${order.marketer_account || '-'}</div>
-                    </td>
                     <td class="p-4">
                         <select onchange="updateStatus(${order.id_web_order}, this.value)" class="border rounded-lg p-1.5 text-xs font-bold outline-none bg-white shadow-sm">
                             <option value="قيد المراجعة" ${order.order_status === 'قيد المراجعة' ? 'selected' : ''}>⏳ قيد المراجعة</option>
@@ -173,7 +151,7 @@
                         </select>
                     </td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
-                    <td class="p-4">
+                    <td class="p-4 text-center">
                         <button onclick="printInvoice(${order.id_web_order})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs shadow-sm transition">
                             🖨️ طباعة الفاتورة
                         </button>
@@ -184,6 +162,7 @@
             tbody.innerHTML = html;
         }
 
+        // 3. تحديث حالة الطلب
         async function updateStatus(orderId, newStatus) {
             try {
                 const { error } = await supabaseClient
@@ -198,6 +177,7 @@
             }
         }
 
+        // 4. بناء وطباعة الفاتورة الشاملة
         function printInvoice(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) {
@@ -208,12 +188,16 @@
             const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : '-';
 
             let itemsRows = '';
+            let totalCommission = 0;
+
             if (order.web_order_details && order.web_order_details.length > 0) {
                 order.web_order_details.forEach(item => {
-                    const itemTotal = item.amount || (item.qte * item.price);
+                    const itemTotal = item.amount || ((item.qte || 0) * (item.price || 0));
+                    totalCommission += Number(item.commission || 0) * Number(item.qte || 1);
+
                     itemsRows += `
                         <tr class="border-b text-center">
-                            <td class="p-2 text-right">${item.product_name || '-'}</td>
+                            <td class="p-2 text-right font-semibold">${item.product_name || '-'}</td>
                             <td class="p-2">${item.qte || 0}</td>
                             <td class="p-2">${Number(item.price || 0).toFixed(2)} ج.س</td>
                             <td class="p-2 font-bold">${Number(itemTotal).toFixed(2)} ج.س</td>
@@ -225,20 +209,20 @@
             }
 
             const invoiceHtml = `
-                <div class="max-w-3xl mx-auto border p-6 rounded-xl bg-white text-gray-800">
+                <div class="max-w-3xl mx-auto border border-gray-300 p-6 rounded-xl bg-white text-gray-800">
                     <div class="flex justify-between items-center border-b pb-4 mb-4">
                         <div>
                             <h1 class="text-2xl font-extrabold text-blue-600">فاتورة مبيعات</h1>
                             <p class="text-xs text-gray-500">رقم الطلب: #${order.id_web_order}</p>
                         </div>
                         <div class="text-left text-xs text-gray-500">
-                            <div>التاريخ: ${date}</div>
-                            <div>حالة الطلب: <span class="font-bold text-gray-700">${order.order_status || '-'}</span></div>
+                            <div><b>التاريخ:</b> ${date}</div>
+                            <div><b>حالة الطلب:</b> ${order.order_status || '-'}</div>
                         </div>
                     </div>
 
-                    <!-- بيانات العميل -->
-                    <div class="bg-gray-50 p-4 rounded-lg mb-6 text-xs">
+                    <!-- 1. بيانات العميل -->
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4 text-xs">
                         <h2 class="font-bold text-sm mb-2 text-gray-700 border-b pb-1">بيانات العميل:</h2>
                         <div class="grid grid-cols-2 gap-2">
                             <div><b>اسم العميل:</b> ${order.client_name || '-'}</div>
@@ -248,8 +232,8 @@
                         </div>
                     </div>
 
-                    <!-- جدول المنتجات -->
-                    <table class="w-full text-xs border-collapse mb-6">
+                    <!-- 2. جدول المنتجات والتفاصيل -->
+                    <table class="w-full text-xs border-collapse mb-4">
                         <thead>
                             <tr class="bg-gray-100 border-b font-bold text-gray-700">
                                 <th class="p-2 text-right">اسم المنتج</th>
@@ -263,23 +247,21 @@
                         </tbody>
                     </table>
 
-                    <!-- الإجمالي -->
-                    <div class="flex justify-end mb-6 text-sm">
+                    <!-- 3. إجمالي المشتريات -->
+                    <div class="flex justify-end mb-4 text-xs">
                         <div class="w-1/2 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <div class="flex justify-between font-extrabold text-blue-700">
+                            <div class="flex justify-between font-extrabold text-blue-700 text-sm">
                                 <span>إجمالي المشتريات:</span>
                                 <span>${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- بيانات المسوق -->
+                    <!-- 4. بيانات المسوق والعمولة -->
                     <div class="bg-amber-50 border border-amber-200 p-4 rounded-lg text-xs">
-                        <h2 class="font-bold text-sm mb-2 text-amber-800 border-b border-amber-200 pb-1">بيانات المسوق والعمولة:</h2>
-                        <div class="grid grid-cols-3 gap-2 text-amber-900">
-                            <div><b>اسم المسوق:</b> ${order.marketer_name || '-'}</div>
-                            <div><b>العمولة:</b> ${Number(order.marketer_commission || 0).toFixed(2)} ج.س</div>
-                            <div><b>رقم حساب المسوق:</b> ${order.marketer_account || '-'}</div>
+                        <h2 class="font-bold text-sm mb-2 text-amber-800 border-b border-amber-200 pb-1">تفاصيل عمولة الطلب:</h2>
+                        <div class="grid grid-cols-2 gap-2 text-amber-900">
+                            <div><b>مجموع عمولة الطلب:</b> ${Number(totalCommission).toFixed(2)} ج.س</div>
                         </div>
                     </div>
                 </div>
