@@ -3,111 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سلة المشتريات - إتمام الطلب</title> 
+    <title>سلة المشتريات والدفع</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Cairo', sans-serif; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Cairo', sans-serif; }</style>
 </head>
-<body class="bg-slate-50 text-slate-800 p-4 md:p-8 pb-24 md:pb-8">
+<body class="bg-gray-50 text-gray-800 p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto">
         <div class="flex justify-between items-center mb-6">
-            <h1 class="text-xl md:text-3xl font-extrabold text-slate-800 flex items-center gap-2">🛒 سلة المشتريات</h1>
-            <a href="store.html" class="text-blue-600 hover:underline font-bold text-sm">⬅️ العودة للمتجر</a>
+            <h1 class="text-2xl font-bold">🛒 سلة المشتريات وإنهاء الطلب</h1>
+            <a href="store.html" class="text-blue-600 font-bold hover:underline text-sm">⬅️ العودة للمتجر</a>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- قسم القطع المختارة -->
-            <div class="lg:col-span-2 bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h2 class="font-bold text-slate-700 mb-4 border-b pb-2">القطع المختارة</h2>
-                <div id="cartItems" class="divide-y divide-slate-100"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- قائمة المنتجات بالسلة -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h2 class="text-lg font-bold mb-4 border-b pb-2">المنتجات المطلوبة</h2>
+                <div id="cartItems" class="space-y-4 max-h-80 overflow-y-auto mb-4"></div>
+                <div class="border-t pt-3 flex justify-between font-extrabold text-lg">
+                    <span>الإجمالي:</span>
+                    <span id="cartTotal" class="text-blue-600">0.00 ج.س</span>
+                </div>
             </div>
 
-            <!-- قسم الفاتورة وبيانات الشحن -->
-            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 h-fit space-y-4">
-                <h2 class="font-bold text-slate-700 border-b pb-2">بيانات مستلم الشحنة</h2>
-                
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">الاسم الكامل *</label>
-                    <input type="text" id="clientName" placeholder="محمد صافي الدين ..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400">
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- نموذج بيانات الشحن -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h2 class="text-lg font-bold mb-4 border-b pb-2">📦 بيانات الشحن والتوصيل</h2>
+                <form id="checkoutForm" onsubmit="submitOrder(event)" class="space-y-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">رقم الهاتف الأساسي *</label>
-                        <input type="tel" id="clientPhone" placeholder="0912345678" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-left" dir="ltr">
+                        <label class="block text-xs font-bold mb-1">اسم العميل *</label>
+                        <input type="text" id="client_name" required class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">رقم هاتف بديل (اختياري)</label>
-                        <input type="tel" id="clientSecondPhone" placeholder="0123456789" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-left" dir="ltr">
+                        <label class="block text-xs font-bold mb-1">رقم الهاتف الأساسي *</label>
+                        <input type="tel" id="client_phone" required placeholder="09xxxxxxx" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
-                </div>
-                
-                <!-- اختيار المنطقة ديناميكياً من قاعدة البيانات -->
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">المحافظة / منطقة الشحن *</label>
-                    <select id="clientRegion" onchange="updateShippingCost()" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white">
-                        <option value="" data-cost="0">جاري تحميل المناطق...</option>
-                    </select>
-                </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1">رقم هاتف إضافي (احتياطي)</label>
+                        <input type="tel" id="client_second_phone" placeholder="01xxxxxxx" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-1">العنوان بالتفصيل *</label>
+                        <input type="text" id="client_address" required placeholder="المدينة، الحي، الشارع..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">العنوان بالتفصيل (الشارع / رقم المبنى) *</label>
-                    <input type="text" id="clientAddress" placeholder="اسم الشارع، رقم العقار والشقة..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400">
-                </div>
-
-                <!-- تفاصيل الحساب الديناميكية -->
-                <div class="border-t pt-3 space-y-2 text-sm font-semibold text-slate-600">
-                    <div class="flex justify-between items-center">
-                        <span>إجمالي المنتجات:</span>
-                        <span id="productsTotal">0.00 ج.س</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span>تكلفة التوصيل للمنطقة:</span>
-                        <span id="shippingTotal" class="text-amber-600 font-bold">0.00 ج.س</span>
-                    </div>
-                    <div class="flex justify-between items-center font-bold text-lg border-t pt-2 mt-1">
-                        <span class="text-slate-800">إجمالي الحساب النهائي:</span>
-                        <span id="cartTotal" class="text-emerald-600">0.00 ج.س</span>
-                    </div>
-                </div>
-
-                <button onclick="submitOrder()" id="btnSubmit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer">
-                    🛍️ إرسال الطلب لنظام المبيعات
-                </button>
-
-                <!-- قسم التواصل المباشر الجانبي -->
-                <div class="border-t pt-4 mt-2 hidden md:block">
-                    <p class="text-xs font-bold text-slate-400 mb-2 text-center">هل تحتاج للاستفسار عن منتج قبل الطلب؟</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <a href="https://wa.me/+249918237606" target="_blank" class="flex items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition text-center">
-                            💬 واتساب الإدارة
-                        </a>
-                        <a href="tel:+249122324890" class="flex items-center justify-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition text-center">
-                            📞 اتصال هاتفي
-                        </a>
-                    </div>
-                </div>
+                    <button type="submit" id="btnSubmit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer mt-4">
+                        ✅ تأكيد وإرسال الطلب
+                    </button>
+                </form>
             </div>
-        </div>
-    </div>
-
-    <!-- شريط تواصل عائم أسفل الشاشة للهواتف -->
-    <div class="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 p-3 shadow-xl z-50 md:hidden flex items-center justify-between gap-3">
-        <div class="text-right">
-            <p class="text-[10px] font-bold text-slate-400">للاستفسار وتفاصيل المنتجات:</p>
-            <p class="text-xs font-extrabold text-slate-700">مؤسسة ABM</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="https://wa.me/+249918237606" target="_blank" class="flex items-center gap-1 bg-green-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">
-                💬 واتساب
-            </a>
-            <a href="tel:+249122324890" class="flex items-center gap-1 bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">
-                📞 إتصل بنا
-            </a>
         </div>
     </div>
 
@@ -118,113 +64,36 @@
         );
 
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
-        let productsSubtotal = 0;
-        let currentShippingCost = 0;
-        let globalTotal = 0; 
 
-        // تنسيق الأرقام السودانية
-        function formatSudanPhone(phoneInput) {
-            if (!phoneInput) return null;
-            let cleanNumber = phoneInput.replace(/\D/g, '');
-            if (cleanNumber.startsWith('0')) {
-                cleanNumber = cleanNumber.substring(1);
-            }
-            if (!cleanNumber.startsWith('249')) {
-                cleanNumber = '249' + cleanNumber;
-            }
-            return '+' + cleanNumber;
-        }
-
-        // 1. جلب قائمة المناطق
-        async function fetchRegions() {
-            try {
-                const { data, error } = await supabaseClient
-                    .from("shipping_settings")
-                    .select("*")
-                    .order("region_name", { ascending: true });
-
-                if (error) throw error;
-
-                const regionSelect = document.getElementById("clientRegion");
-                let optionsHTML = '<option value="" data-cost="0">-- اختر الحي/المنطقة --</option>';
-                
-                if (data && data.length > 0) {
-                    data.forEach(region => {
-                        optionsHTML += `<option value="${region.region_name}" data-cost="${region.shipping_cost}">${region.region_name} (${Number(region.shipping_cost).toFixed(2)} ج.س)</option>`;
-                    });
-                } else {
-                    optionsHTML = '<option value="شحن عام" data-cost="4000">شحن موحد (4000.00 ج.س)</option>';
-                }
-                
-                regionSelect.innerHTML = optionsHTML;
-            } catch (err) {
-                console.error("خطأ في جلب مناطق الشحن:", err);
-                document.getElementById("clientRegion").innerHTML = '<option value="شحن عام" data-cost="4000">شحن موحد (4000.00 ج.س)</option>';
-            }
-        }
-
-        // 2. تحديث تكلفة الشحن والإجمالي
-        function updateShippingCost() {
-            const selectEl = document.getElementById("clientRegion");
-            const selectedOption = selectEl.options[selectEl.selectedIndex];
-            
-            currentShippingCost = Number(selectedOption.getAttribute("data-cost")) || 0;
-            calculateFinalTotals();
-        }
-
-        // 3. عرض السلة
         function renderCart() {
-            let html = "";
-            productsSubtotal = 0;
-
-            if(cart.length === 0) {
-                document.getElementById("cartItems").innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">سلتك فارغة تماماً.</div>`;
-                document.getElementById("productsTotal").innerText = "0.00 ج.س";
-                document.getElementById("shippingTotal").innerText = "0.00 ج.س";
-                document.getElementById("cartTotal").innerText = "0.00 ج.س";
-                globalTotal = 0;
+            const container = document.getElementById('cartItems');
+            if (cart.length === 0) {
+                container.innerHTML = `<p class="text-gray-400 text-center py-4">السلة فارغة</p>`;
+                document.getElementById('cartTotal').innerText = '0.00 ج.س';
                 return;
             }
 
-            cart.forEach((item, index) => {
-                let price = Number(item.seal_price) || Number(item.sell_price) || Number(item.coasts_value) || 0;
-                let quantity = Number(item.quantity) || 1;
-                let itemTotal = price * quantity;
-                productsSubtotal += itemTotal;
+            let html = '';
+            let total = 0;
 
+            cart.forEach((item, index) => {
+                const itemTotal = (item.seal_price || 0) * (item.quantity || 1);
+                total += itemTotal;
                 html += `
-                <div class="flex items-center gap-3 py-3">
-                    <div class="flex-1">
-                        <h4 class="font-bold text-slate-800 text-sm">${item.product_name || "منتج غير مسمى"}</h4>
-                        <p class="text-xs text-slate-400">${price.toFixed(2)} ج.س × ${quantity}</p>
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                    <div>
+                        <div class="font-bold text-sm">${item.product_name}</div>
+                        <div class="text-xs text-gray-500">${item.seal_price} × ${item.quantity}</div>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <button onclick="changeQty(${index}, -1)" class="w-7 h-7 bg-slate-100 rounded-lg font-bold text-sm hover:bg-slate-200 cursor-pointer">-</button>
-                        <span class="font-bold text-sm w-5 text-center">${quantity}</span>
-                        <button onclick="changeQty(${index}, 1)" class="w-7 h-7 bg-slate-100 rounded-lg font-bold text-sm hover:bg-slate-200 cursor-pointer">+</button>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-blue-600">${itemTotal.toFixed(2)}</span>
+                        <button onclick="removeItem(${index})" class="text-red-500 hover:text-red-700 font-bold text-xs">❌</button>
                     </div>
-                    <button onclick="removeItem(${index})" class="text-red-500 hover:text-red-600 font-bold text-xs p-1 cursor-pointer">❌</button>
                 </div>`;
             });
 
-            document.getElementById("cartItems").innerHTML = html;
-            calculateFinalTotals();
-        }
-
-        // 4. إجمالي الحساب النهائي
-        function calculateFinalTotals() {
-            globalTotal = productsSubtotal + currentShippingCost;
-            
-            document.getElementById("productsTotal").innerText = productsSubtotal.toFixed(2) + " ج.س";
-            document.getElementById("shippingTotal").innerText = currentShippingCost.toFixed(2) + " ج.س";
-            document.getElementById("cartTotal").innerText = globalTotal.toFixed(2) + " ج.س";
-        }
-
-        function changeQty(index, change) {
-            cart[index].quantity = (Number(cart[index].quantity) || 1) + change;
-            if (cart[index].quantity <= 0) cart.splice(index, 1);
-            localStorage.setItem('customerCart', JSON.stringify(cart));
-            renderCart();
+            container.innerHTML = html;
+            document.getElementById('cartTotal').innerText = total.toFixed(2) + ' ج.س';
         }
 
         function removeItem(index) {
@@ -233,90 +102,68 @@
             renderCart();
         }
 
-        // 5. رفع الطلب لجدول web_orders
-        async function submitOrder() {
-            const name = document.getElementById("clientName").value.trim();
-            const rawPhone = document.getElementById("clientPhone").value.trim();
-            const rawSecondPhone = document.getElementById("clientSecondPhone").value.trim();
-            const region = document.getElementById("clientRegion").value;
-            const addressDetails = document.getElementById("clientAddress").value.trim();
-
-            if(!name || !rawPhone || !region || !addressDetails) {
-                return alert("الرجاء تعبئة جميع الحقول المطلوبة واختيار المنطقة!");
+        async function submitOrder(e) {
+            e.preventDefault();
+            if (cart.length === 0) {
+                alert("السلة فارغة!");
+                return;
             }
-            if(cart.length === 0) return alert("السلة فارغة!");
 
-            const phone = formatSudanPhone(rawPhone);
-            const secondPhone = rawSecondPhone ? formatSudanPhone(rawSecondPhone) : null;
-
-            const btn = document.getElementById("btnSubmit");
+            const btn = document.getElementById('btnSubmit');
             btn.disabled = true;
-            btn.innerText = "جاري إرسال طلبك...";
+            btn.innerText = "جاري حفظ الطلب...";
 
-            const fullAddress = `${region} - ${addressDetails}`;
+            const total = cart.reduce((sum, item) => sum + ((item.seal_price || 0) * (item.quantity || 1)), 0);
 
             try {
-                // 1. رفع الطلب إلى web_orders متوافقاً مع الهيكلية
-                const { data: webOrder, error: orderError } = await supabaseClient
-                    .from("web_orders")
+                // 1. إضافة سجل الطلب الرئيسي في web_orders
+                const { data: orderData, error: orderError } = await supabaseClient
+                    .from('web_orders')
                     .insert([{
-                        client_name: name,
-                        client_phone: phone,
-                        client_second_phone: secondPhone,
-                        client_address: fullAddress,
-                        total_amount: globalTotal,
-                        order_status: "قيد المراجعة"
-                    }]).select();
+                        client_name: document.getElementById('client_name').value,
+                        client_phone: document.getElementById('client_phone').value,
+                        client_second_phone: document.getElementById('client_second_phone').value || null,
+                        client_address: document.getElementById('client_address').value,
+                        total_amount: total,
+                        order_status: 'قيد المراجعة'
+                    }])
+                    .select('id_web_order')
+                    .single();
 
                 if (orderError) throw orderError;
-                const newWebOrderId = webOrder[0].id_web_order;
 
-                // 2. إدراج الأصناف
-                const detailsToInsert = cart.map(item => {
-                    let itemPrice = Number(item.seal_price) || Number(item.sell_price) || Number(item.coasts_value) || 0;
-                    let itemQte = Number(item.quantity) || 1;
-                    return {
-                        id_web_order: newWebOrderId,
-                        id_product: Number(item.id_product),
-                        product_name: item.product_name,
-                        qte: itemQte,
-                        price: itemPrice,
-                        amount: itemPrice * itemQte
-                    };
-                });
+                const newOrderId = orderData.id_web_order;
+
+                // 2. تجهيز وسجل تفاصيل المنتجات لجدول web_order_details
+                const orderDetails = cart.map(item => ({
+                    id_web_order: newOrderId,
+                    id_product: item.id_product,
+                    product_name: item.product_name,
+                    qte: item.quantity,
+                    price: item.seal_price,
+                    amount: item.seal_price * item.quantity,
+                    commission: 0 // يمكن حساب العمولة لاحقاً
+                }));
 
                 const { error: detailsError } = await supabaseClient
-                    .from("web_order_details")
-                    .insert(detailsToInsert);
+                    .from('web_order_details')
+                    .insert(orderDetails);
 
                 if (detailsError) throw detailsError;
 
-                // 3. مسح السلة والتوجيه لواتساب
+                alert("🎉 تم إرسال طلبك بنجاح! رقم الطلب: " + newOrderId);
                 localStorage.removeItem('customerCart');
-                
-                const storeWhatsapp = "249918237606";
-                let whatsappMsgText = `مرحباً، تم إرسال طلب جديد من الموقع:\n\n📦 رقم الطلب: #${newWebOrderId}\n👤 الاسم: ${name}\n📞 الهاتف: ${phone}`;
-                if (secondPhone) whatsappMsgText += `\n📞 هاتف بديل: ${secondPhone}`;
-                whatsappMsgText += `\n📍 العنوان: ${fullAddress}\n💵 الإجمالي: ${globalTotal.toFixed(2)} ج.س`;
+                window.location.href = 'store.html';
 
-                const whatsappMsg = encodeURIComponent(whatsappMsgText);
-
-                alert(`🎉 تم استلام طلبك بنجاح وسيتصل بك مندوبنا للتأكيد.\nرقم الطلب: #${newWebOrderId}`);
-
-                window.location.href = `https://wa.me/${storeWhatsapp}?text=${whatsappMsg}`;
-
-            } catch (error) {
-                console.error(error);
-                alert("خطأ أثناء إرسال الطلب: " + error.message);
+            } catch (err) {
+                console.error("خطأ أثناء حفظ الطلب:", err);
+                alert("حدث خطأ أثناء حفظ الطلب: " + err.message);
                 btn.disabled = false;
-                btn.innerText = "🛍️ إرسال الطلب لنظام المبيعات";
+                btn.innerText = "✅ تأكيد وإرسال الطلب";
             }
         }
 
-        window.onload = async function() {
-            await fetchRegions(); 
-            renderCart();         
-        };
+        renderCart();
     </script>
 </body>
 </html>
