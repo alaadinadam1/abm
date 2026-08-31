@@ -168,8 +168,8 @@ tr:nth-child(even) {
     <!-- نموذج إدخال البيانات -->
     <div class="grid">
         <div class="input-group">
-            <label>اسم المسوق / العميل:</label>
-            <input id="client_name" placeholder="أدخل الاسم">
+            <label>اسم المسوق:</label>
+            <input id="marketer_name" placeholder="أدخل اسم المسوق">
         </div>
 
         <div class="input-group">
@@ -228,31 +228,17 @@ const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 let edit_id = null;
 let marketersList = [];
 
-// استخراج قيمة حقل بأي صيغة أحرف تضمن عدم حدوث خطأ
-function getProp(obj, propName) {
-    if (!obj) return null;
-    const key = Object.keys(obj).find(k => k.toLowerCase() === propName.toLowerCase());
-    return key ? obj[key] : null;
-}
-
 // 1. تحميل بيانات المسوقين من Supabase
 async function loadMarketers() {
     try {
         const { data, error } = await client
             .from("marketers")
-            .select("*");
+            .select("*")
+            .order("id_marketer", { ascending: false });
 
         if (error) throw error;
 
         marketersList = data || [];
-        
-        // ترتيب البيانات تنازلياً حسب الـ ID
-        marketersList.sort((a, b) => {
-            const idA = getProp(a, "id_marketer") || 0;
-            const idB = getProp(b, "id_marketer") || 0;
-            return idB - idA;
-        });
-
         renderTable(marketersList);
     } catch (err) {
         console.error("خطأ في تحميل المسوقين:", err.message || err);
@@ -266,12 +252,12 @@ function renderTable(list) {
         html = `<tr><td colspan="8">لا يوجد مسوقين مسجلين حالياً</td></tr>`;
     } else {
         list.forEach(m => {
-            let id = getProp(m, "id_marketer");
-            let name = getProp(m, "client_name");
-            let phone = getProp(m, "marketer_phone");
-            let whatsapp = getProp(m, "marketer_account_whatsapp");
-            let account = getProp(m, "marketer_account");
-            let date = getProp(m, "date_created");
+            let id = m.id_marketer;
+            let name = m.marketer_name;
+            let phone = m.marketer_phone;
+            let whatsapp = m.marketer_account_whatsapp;
+            let account = m.marketer_account;
+            let date = m.date_created;
 
             let formattedDate = date 
                 ? new Date(date).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) 
@@ -296,9 +282,9 @@ function renderTable(list) {
 // 3. حفظ أو تعديل مسوق
 async function saveMarketer() {
     const btnSave = document.getElementById("btnSave");
-    const client_name = document.getElementById("client_name").value.trim();
+    const nameVal = document.getElementById("marketer_name").value.trim();
 
-    if (!client_name) {
+    if (!nameVal) {
         alert("يرجى إدخال اسم المسوق على الأقل");
         return;
     }
@@ -310,9 +296,9 @@ async function saveMarketer() {
     const whatsappVal = document.getElementById("marketer_account_whatsapp").value.trim();
     const accountVal = document.getElementById("marketer_account").value.trim();
 
-    // إرسال الحقول بالحروف الصغيرة القياسية لـ PostgreSQL
+    // تجهيز كائن البيانات طبقاً لجدولك في Supabase
     let payload = {
-        client_name: client_name,
+        marketer_name: nameVal,
         marketer_phone: phoneVal || null,
         marketer_account_whatsapp: whatsappVal || null,
         marketer_account: accountVal || null
@@ -321,15 +307,15 @@ async function saveMarketer() {
     try {
         let res;
         if (edit_id === null) {
-            // إضافة جديد
+            // إضافة مسوق جديد
             res = await client.from("marketers").insert([payload]);
         } else {
-            // تحديث
+            // تحديث مسوق موجود
             res = await client.from("marketers").update(payload).eq("id_marketer", edit_id);
         }
 
         if (res.error) {
-            console.error("Supabase Error Details:", res.error);
+            console.error("تفاصيل خطأ Supabase:", res.error);
             throw res.error;
         }
 
@@ -346,13 +332,13 @@ async function saveMarketer() {
 
 // 4. تعبئة النموذج للتعديل
 function editMarketer(id) {
-    let m = marketersList.find(x => getProp(x, "id_marketer") == id);
+    let m = marketersList.find(x => x.id_marketer == id);
     if (!m) return;
 
-    document.getElementById("client_name").value = getProp(m, "client_name") || "";
-    document.getElementById("marketer_phone").value = getProp(m, "marketer_phone") || "";
-    document.getElementById("marketer_account_whatsapp").value = getProp(m, "marketer_account_whatsapp") || "";
-    document.getElementById("marketer_account").value = getProp(m, "marketer_account") || "";
+    document.getElementById("marketer_name").value = m.marketer_name || "";
+    document.getElementById("marketer_phone").value = m.marketer_phone || "";
+    document.getElementById("marketer_account_whatsapp").value = m.marketer_account_whatsapp || "";
+    document.getElementById("marketer_account").value = m.marketer_account || "";
 
     edit_id = id;
     document.getElementById("btnSave").innerText = "تحديث البيانات";
@@ -375,8 +361,8 @@ async function deleteMarketer(id) {
 function searchMarketer() {
     let word = document.getElementById("searchBox").value.toLowerCase();
     let filtered = marketersList.filter(m => {
-        let name = (getProp(m, "client_name") || "").toLowerCase();
-        let phone = (getProp(m, "marketer_phone") || "").toLowerCase();
+        let name = (m.marketer_name || "").toLowerCase();
+        let phone = (m.marketer_phone || "").toLowerCase();
         return name.includes(word) || phone.includes(word);
     });
     renderTable(filtered);
@@ -384,7 +370,7 @@ function searchMarketer() {
 
 // 7. تفريغ النموذج
 function clearForm() {
-    document.getElementById("client_name").value = "";
+    document.getElementById("marketer_name").value = "";
     document.getElementById("marketer_phone").value = "";
     document.getElementById("marketer_account_whatsapp").value = "";
     document.getElementById("marketer_account").value = "";
