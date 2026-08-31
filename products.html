@@ -7,6 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>إدارة المنتجات</title>
 
+<!-- استدعاء مكتبة Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 
 body{
@@ -139,9 +142,11 @@ color:white;
 
 <input id="coasts_value" type="number" placeholder="التكاليف">
 
-<select id="id_cat"></select>
+<select id="id_cat">
+  <option value="">اختر الصنف...</option>
+</select>
 
-<input id="p_weight" placeholder="الوزن">
+<input id="department" placeholder="القسم">
 
 </div>
 
@@ -172,55 +177,60 @@ color:white;
 </div>
 
 <script>
+// إعداد عميل Supabase
+const supabaseUrl = "https://ihlwkwiimimoiplfqcdk.supabase.co";
+const supabaseKey = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK";
+const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let edit_id = null;
 let products = [];
-let categories = []; // لتخزين أسماء التصنيفات والربط بينها
+let categories = []; 
 
-// 1. تحميل الأصناف من السيرفر المحلي
+// 1. تحميل الأصناف من Supabase
 async function loadCategories(){
     try {
-        const response = await fetch('/api/categories');
-        const data = await response.json();
-        categories = data;
+        const { data, error } = await client.from("categories").select("*");
+        if (error) throw error;
 
-        let html = "";
-        data.forEach(c => {
-            // استخدام الحقل id_cat والوصف المتاح (مثلاً description_cat)
+        categories = data || [];
+
+        let html = `<option value="">اختر الصنف...</option>`;
+        categories.forEach(c => {
             html += `<option value="${c.id_cat}">${c.description_cat || c.name_cat || ('صنف ' + c.id_cat)}</option>`;
         });
 
         document.getElementById("id_cat").innerHTML = html;
     } catch (err) {
-        console.error("خطأ في تحميل الأصناف:", err);
+        console.error("خطأ في تحميل الأصناف:", err.message);
     }
 }
 
-// 2. تحميل المنتجات من السيرفر المحلي
+// 2. تحميل المنتجات من Supabase
 async function loadProducts(){
     try {
-        const response = await fetch('/api/products');
-        products = await response.json();
+        const { data, error } = await client.from("products").select("*").order("id_product", { ascending: false });
+        if (error) throw error;
+
+        products = data || [];
         renderTable(products);
     } catch (err) {
-        console.error("خطأ في تحميل المنتجات:", err);
+        console.error("خطأ في تحميل المنتجات:", err.message);
     }
 }
 
-// 3. عرض جدول المنتجات بربط رقم الصنف باسمه إن وُجد
+// 3. عرض جدول المنتجات
 function renderTable(list){
     let html = "";
     list.forEach(p => {
-        // البحث عن اسم الصنف بناءً على id_cat لعرض اسمه بدلاً من رقمه
         const catObj = categories.find(c => c.id_cat == p.id_cat);
-        const catName = catObj ? (catObj.description_cat || catObj.name_cat) : p.id_cat;
+        const catName = catObj ? (catObj.description_cat || catObj.name_cat) : (p.id_cat || "غير محدد");
 
         html += `
         <tr>
         <td>${p.id_product}</td>
-        <td>${p.product_name}</td>
-        <td>${p.qte_in_stock}</td>
-        <td>${p.seal_price}</td>
+        <td>${p.product_name || ""}</td>
+        <td>${p.qte_in_stock || 0}</td>
+        <td>${p.seal_price || 0}</td>
         <td>${catName}</td>
         <td><button class="edit" onclick="editProduct(${p.id_product})">تعديل</button></td>
         <td><button class="delete" onclick="deleteProduct(${p.id_product})">حذف</button></td>
@@ -229,16 +239,17 @@ function renderTable(list){
     document.getElementById("tableBody").innerHTML = html;
 }
 
-// 4. حفظ أو تعديل المنتج عبر الخادم المحلي
+// 4. حفظ أو تعديل المنتج في Supabase
 async function saveProduct(){
     let payQte = Number(document.getElementById("pay_qte").value) || 0;
     let piceQte = Number(document.getElementById("pice_qte").value) || 0;
     
-    // إذا قام المستخدم بكتابة المخزون يدوياً نأخذه، وإلا نحسبه تلقائياً
-    let stockInput = Number(document.getElementById("qte_in_stock").value);
-    let stockCalculated = stockInput ? stockInput : (payQte * piceQte);
+    let stockInput = document.getElementById("qte_in_stock").value;
+    let stockCalculated = stockInput !== "" ? Number(stockInput) : (payQte * piceQte);
 
-    let data = {
+    let catVal = document.getElementById("id_cat").value;
+
+    let payload = {
         product_name: document.getElementById("product_name").value || null,
         pay_qte: payQte,
         pice_qte: piceQte,
@@ -249,38 +260,30 @@ async function saveProduct(){
         expare_date: document.getElementById("expare_date").value || null,
         req_id: document.getElementById("req_id").value || null,
         coasts_value: Number(document.getElementById("coasts_value").value) || 0,
-        id_cat: Number(document.getElementById("id_cat").value) || 1,
-        p_weight: document.getElementById("p_weight").value || null
+        id_cat: catVal ? Number(catVal) : null,
+        department: document.getElementById("department").value || null
     };
 
     try {
-        let response;
+        let error;
         if(edit_id == null){
             // إضافة منتج جديد
-            response = await fetch('/api/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+            const res = await client.from("products").insert([payload]);
+            error = res.error;
         } else {
-            // تحديث منتج موجود (تأكد أن السيرفر يدعم مسار PUT أو POST للتحديث)
-            response = await fetch(`/api/products/${edit_id}`, {
-                method: 'PUT', // أو POST حسب كود التعديل في السيرفر الخاص بك
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+            // تحديث منتج موجود
+            const res = await client.from("products").update(payload).eq("id_product", edit_id);
+            error = res.error;
             edit_id = null;
         }
 
-        if(!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || "فشل حفظ البيانات");
-        }
+        if(error) throw error;
 
+        alert("تم الحفظ بنجاح");
         clearForm();
         loadProducts();
     } catch(err) {
-        alert("خطأ: " + err.message);
+        alert("خطأ أثناء الحفظ: " + err.message);
     }
 }
 
@@ -296,56 +299,52 @@ function editProduct(id){
     document.getElementById("pay_price").value = p.pay_price || "";
     document.getElementById("seal_price").value = p.seal_price || "";
     
-    // تنسيق التاريخ ليطابق صيغة حقل التاريخ yyyy-MM-dd
     if(p.pay_date) document.getElementById("pay_date").value = p.pay_date.split('T')[0];
     if(p.expare_date) document.getElementById("expare_date").value = p.expare_date.split('T')[0];
     
     document.getElementById("req_id").value = p.req_id || "";
     document.getElementById("coasts_value").value = p.coasts_value || "";
     document.getElementById("id_cat").value = p.id_cat || "";
-    document.getElementById("p_weight").value = p.p_weight || "";
+    document.getElementById("department").value = p.department || "";
 
     edit_id = id;
 }
 
 // 6. حذف منتج
 async function deleteProduct(id){
-    if(!confirm("تأكيد الحذف؟")) return;
+    if(!confirm("هل أنت تأكد من عملية الحذف؟")) return;
     try {
-        const response = await fetch(`/api/products/${id}`, {
-            method: 'DELETE'
-        });
-        if(response.ok) {
-            loadProducts();
-        } else {
-            alert("فشل حذف المنتج من الخادم المحلي");
-        }
+        const { error } = await client.from("products").delete().eq("id_product", id);
+        if(error) throw error;
+
+        loadProducts();
     } catch (err) {
         alert("خطأ عند الحذف: " + err.message);
     }
 }
 
-// 7. بحث
+// 7. بحث في المنتجات
 function searchProduct(){
     let word = document.getElementById("searchBox").value.toLowerCase();
     let filtered = products.filter(p =>
-        p.product_name?.toLowerCase().includes(word)
+        (p.product_name || "").toLowerCase().includes(word)
     );
     renderTable(filtered);
 }
 
-// 8. مسح الحقول
+// 8. تفريغ الحقول
 function clearForm(){
     document.querySelectorAll(".grid input").forEach(i => i.value = "");
+    document.getElementById("id_cat").value = "";
     edit_id = null;
 }
 
-// 9. خروج
+// 9. تسجيل الخروج
 function logout(){
     window.location.href = "index.html";
 }
 
-// تشغيل جلب البيانات عند بدء تحميل الصفحة
+// البدء
 async function init() {
     await loadCategories();
     await loadProducts();
