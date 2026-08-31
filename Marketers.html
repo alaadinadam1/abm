@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إدارة المسوقين</title>
+
+<!-- استدعاء مكتبة Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Tahoma, Arial, sans-serif;
+    background: #f4f6f9;
+    padding: 15px;
+    margin: 0;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+}
+
+h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #333;
+}
+
+.logout {
+    background: #444;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+@media(min-width: 768px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+label {
+    font-size: 13px;
+    font-weight: bold;
+    color: #555;
+}
+
+input {
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: 0.3s;
+}
+
+input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+}
+
+.btn-container {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: 0.2s;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.save { background: #28a745; color: white; width: 100%; }
+.cancel { background: #6c757d; color: white; display: none; }
+.edit { background: #ffc107; color: #333; padding: 5px 10px; font-size: 12px; }
+.delete { background: #dc3545; color: white; padding: 5px 10px; font-size: 12px; }
+
+.search-box {
+    margin: 20px 0 10px 0;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 650px;
+}
+
+th, td {
+    border: 1px solid #e0e0e0;
+    padding: 10px;
+    text-align: center;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+th {
+    background: #007bff;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.date-cell {
+    font-size: 11px;
+    color: #666;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header-bar">
+        <h2>إدارة بيانات المسوقين</h2>
+        <button class="logout" onclick="logout()">خروج</button>
+    </div>
+
+    <!-- نموذج إدخال البيانات -->
+    <div class="grid">
+        <div class="input-group">
+            <label>اسم المسوق / العميل:</label>
+            <input id="client_name" placeholder="أدخل الاسم">
+        </div>
+
+        <div class="input-group">
+            <label>رقم الهاتف:</label>
+            <input id="Marketer_phone" placeholder="أدخل رقم الهاتف">
+        </div>
+
+        <div class="input-group">
+            <label>حساب الواتساب:</label>
+            <input id="Marketer_account_Whatsapp" placeholder="أدخل رقم أو رابط الواتساب">
+        </div>
+
+        <div class="input-group">
+            <label>الحساب المصرفي / البنكي:</label>
+            <input id="Marketer_account" placeholder="رقم الحساب أو IBAN">
+        </div>
+    </div>
+
+    <div class="btn-container">
+        <button class="save" id="btnSave" onclick="saveMarketer()">حفظ البيانات</button>
+        <button class="cancel" id="btnCancel" onclick="clearForm()">إلغاء التعديل</button>
+    </div>
+
+    <!-- حقل البحث -->
+    <div class="search-box">
+        <input type="text" id="searchBox" placeholder="بحث باسم المسوق أو رقم الهاتف..." onkeyup="searchMarketer()">
+    </div>
+
+    <!-- جدول عرض المسوقين -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>الاسم</th>
+                    <th>الهاتف</th>
+                    <th>الواتساب</th>
+                    <th>الحساب المصرفي</th>
+                    <th>تاريخ التسجيل</th>
+                    <th>تعديل</th>
+                    <th>حذف</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+// إعداد عميل Supabase
+const supabaseUrl = "https://ihlwkwiimimoiplfqcdk.supabase.co";
+// ضع مفتاح الـ anon الخاص بك هنا
+const supabaseKey = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK";
+const client = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let edit_id = null;
+let marketersList = [];
+
+// 1. تحميل بيانات المسوقين من Supabase
+async function loadMarketers() {
+    try {
+        const { data, error } = await client
+            .from("Marketers")
+            .select("*")
+            .order("id_Marketer", { ascending: false });
+
+        if (error) throw error;
+
+        marketersList = data || [];
+        renderTable(marketersList);
+    } catch (err) {
+        console.error("خطأ في تحميل المسوقين:", err.message);
+    }
+}
+
+// 2. عرض جدول البيانات
+function renderTable(list) {
+    let html = "";
+    if (list.length === 0) {
+        html = `<tr><td colspan="8">لا يوجد مسوقين مسجلين حالياً</td></tr>`;
+    } else {
+        list.forEach(m => {
+            // تنسيق تاريخ الإنشاء
+            let formattedDate = m.date_created 
+                ? new Date(m.date_created).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }) 
+                : "-";
+
+            html += `
+            <tr>
+                <td>${m.id_Marketer}</td>
+                <td><b>${m.client_name || "-"}</b></td>
+                <td>${m.Marketer_phone || "-"}</td>
+                <td>${m.Marketer_account_Whatsapp || "-"}</td>
+                <td>${m.Marketer_account || "-"}</td>
+                <td class="date-cell">${formattedDate}</td>
+                <td><button class="edit" onclick="editMarketer(${m.id_Marketer})">تعديل</button></td>
+                <td><button class="delete" onclick="deleteMarketer(${m.id_Marketer})">حذف</button></td>
+            </tr>`;
+        });
+    }
+    document.getElementById("tableBody").innerHTML = html;
+}
+
+// 3. حفظ أو تعديل مسوق
+async function saveMarketer() {
+    const btnSave = document.getElementById("btnSave");
+    const client_name = document.getElementById("client_name").value.trim();
+
+    if (!client_name) {
+        alert("يرجى إدخال اسم المسوق على الأقل");
+        return;
+    }
+
+    btnSave.disabled = true;
+    btnSave.innerText = "جاري الحفظ...";
+
+    let payload = {
+        client_name: client_name,
+        Marketer_phone: document.getElementById("Marketer_phone").value.trim() || null,
+        Marketer_account_Whatsapp: document.getElementById("Marketer_account_Whatsapp").value.trim() || null,
+        Marketer_account: document.getElementById("Marketer_account").value.trim() || null
+    };
+
+    try {
+        let error;
+        if (edit_id === null) {
+            // إضافة مسوق جديد
+            const res = await client.from("Marketers").insert([payload]);
+            error = res.error;
+        } else {
+            // تحديث مسوق موجود
+            const res = await client.from("Marketers").update(payload).eq("id_Marketer", edit_id);
+            error = res.error;
+        }
+
+        if (error) throw error;
+
+        alert("تم الحفظ بنجاح");
+        clearForm();
+        loadMarketers();
+    } catch (err) {
+        alert("خطأ أثناء الحفظ: " + err.message);
+    } finally {
+        btnSave.disabled = false;
+        btnSave.innerText = "حفظ البيانات";
+    }
+}
+
+// 4. تعبئة النموذج للتعديل
+function editMarketer(id) {
+    let m = marketersList.find(x => x.id_Marketer == id);
+    if (!m) return;
+
+    document.getElementById("client_name").value = m.client_name || "";
+    document.getElementById("Marketer_phone").value = m.Marketer_phone || "";
+    document.getElementById("Marketer_account_Whatsapp").value = m.Marketer_account_Whatsapp || "";
+    document.getElementById("Marketer_account").value = m.Marketer_account || "";
+
+    edit_id = id;
+    document.getElementById("btnSave").innerText = "تحديث البيانات";
+    document.getElementById("btnCancel").style.display = "inline-block";
+}
+
+// 5. حذف مسوق
+async function deleteMarketer(id) {
+    if (!confirm("هل أنت تأكد من حذف بيانات هذا المسوق؟")) return;
+    try {
+        const { error } = await client.from("Marketers").delete().eq("id_Marketer", id);
+        if (error) throw error;
+
+        loadMarketers();
+    } catch (err) {
+        alert("خطأ عند الحذف: " + err.message);
+    }
+}
+
+// 6. البحث في المسوقين
+function searchMarketer() {
+    let word = document.getElementById("searchBox").value.toLowerCase();
+    let filtered = marketersList.filter(m =>
+        (m.client_name || "").toLowerCase().includes(word) ||
+        (m.Marketer_phone || "").toLowerCase().includes(word)
+    );
+    renderTable(filtered);
+}
+
+// 7. تفريغ النموذج
+function clearForm() {
+    document.getElementById("client_name").value = "";
+    document.getElementById("Marketer_phone").value = "";
+    document.getElementById("Marketer_account_Whatsapp").value = "";
+    document.getElementById("Marketer_account").value = "";
+
+    edit_id = null;
+    document.getElementById("btnSave").innerText = "حفظ البيانات";
+    document.getElementById("btnCancel").style.display = "none";
+}
+
+// 8. تسجيل الخروج
+function logout() {
+    window.location.href = "index.html";
+}
+
+// التشغيل الابتدائي
+loadMarketers();
+
+</script>
+
+</body>
+</html>
