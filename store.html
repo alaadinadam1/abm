@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>متجر الاجهزة الكهربية والمنزلية </title>
+    <title>متجر كنوز الغرة للأجهزة الكهربائية والمنزلية</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -14,60 +14,73 @@
         @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-100 text-gray-800 antialiased">
 
-    <div class="bg-gray-900 text-white text-xs py-2 px-4 border-b border-gray-800">
+    <div class="bg-slate-900 text-white text-xs py-2 px-4 border-b border-slate-800">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-            <div class="font-semibold text-gray-300">
-                ✨     اهلا بك في متجر كنوز الغرة  للاجهزة الكهربية و المنزلية KUNOZ AL-GURRAH    
+            <div class="font-semibold text-slate-300 flex items-center gap-2">
+                <span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px]">مرحبًا بك</span>
+                <span>متجر كنوز الغرة للأجهزة الكهربائية والمنزلية (KUNOZ AL-GURRAH)</span>
             </div>
             <div class="flex items-center gap-4 font-bold">
                 <a href="tel:+249122324890" class="hover:text-blue-400 transition flex items-center gap-1">
-                    📞 اتصل بنا: <span dir="ltr">+249122324890</span>
+                    📞 المبيعات: <span dir="ltr">+249122324890</span>
                 </a>
-                <span class="text-gray-700 hidden sm:inline">|</span>
-                <a href="https://wa.me/+249112831170" target="_blank" class="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg transition flex items-center gap-1">
-                    💬 واتساب مباشر
+                <span class="text-slate-700 hidden sm:inline">|</span>
+                <a href="https://wa.me/+249112831170" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg transition flex items-center gap-1 text-xs">
+                    💬 خدمة العملاء عبر واتساب
                 </a>
             </div>
         </div>
     </div>
 
-    <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <span class="text-2xl">🛍️</span>
-                <span class="text-xl font-bold text-blue-600">  كنوز الغرة  للاجهزة الكهربية و المنزلية KUNOZ AL-GURRAH  </span>
+    <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-50 text-blue-600 p-2 rounded-xl text-2xl">⚡</div>
+                <div>
+                    <span class="text-xl font-extrabold text-slate-900 block leading-none">كنوز الغرة</span>
+                    <span class="text-[10px] text-gray-500 font-semibold tracking-wide">للأجهزة الكهربائية والمنزلية</span>
+                </div>
             </div>
-            <a href="cart.html" class="bg-gray-100 hover:bg-gray-200 p-2 px-4 rounded-xl transition flex items-center gap-2 font-bold text-sm">
-                <span>🛒 سلة المشتريات</span>
-                <span id="cartCount" class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+            <a href="cart.html" class="bg-slate-900 hover:bg-blue-600 text-white p-2.5 px-5 rounded-xl transition flex items-center gap-2 font-bold text-sm shadow-sm">
+                <span>🛒 السلة</span>
+                <span id="cartCount" class="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-extrabold">0</span>
             </a>
         </div>
     </nav>
 
-    <header class="relative bg-gray-900 text-white py-14 px-4 text-center">
-        <div class="absolute inset-0 opacity-40 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000&auto=format&fit=crop');"></div>
-        <div class="relative max-w-2xl mx-auto z-10">
-            <h1 class="text-3xl md:text-5xl font-extrabold mb-3">أحدث صيحات الموضة والأزياء</h1>
-            <p class="text-sm md:text-base text-gray-300">اكتشف تشكيلتنا الجديدة المتزامنة مباشرة مع المخازن.</p>
+    <header class="relative bg-slate-900 text-white py-16 px-4 text-center overflow-hidden">
+        <div class="absolute inset-0 opacity-25 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=1200&auto=format&fit=crop');"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+        <div class="relative max-w-3xl mx-auto z-10 space-y-3">
+            <span class="bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs px-3 py-1 rounded-full font-bold inline-block">جودة عالية وضمان معتمد</span>
+            <h1 class="text-3xl md:text-5xl font-black tracking-tight leading-tight">أحدث الأجهزة المنزلية والكهربائية</h1>
+            <p class="text-sm md:text-base text-slate-300 max-w-xl mx-auto">تجهيزات المطابخ، الشاشات، أجهزة التكييف والحلول المنزلية المتكاملة بأفضل الأسعار.</p>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-            <h2 class="text-xl md:text-2xl font-bold">✨ المنتجات المتاحة</h2>
-            <div class="w-full md:w-80">
-                <input type="text" id="searchInput" oninput="filterProducts()" placeholder="🔍 ابحث عن منتج..." class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-400">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">📦 قائمة المنتجات والقطع المتاحة</h2>
+                <p class="text-xs text-gray-500">تصفح المنتجات المتوفرة حالياً في المخزن</p>
+            </div>
+            
+            <div class="w-full md:w-96">
+                <div class="relative">
+                    <input type="text" id="searchInput" oninput="filterProducts()" placeholder="ابحث عن جهاز، شاشة، ثلاجة..." class="w-full border border-gray-300 rounded-xl py-2.5 pr-4 pl-10 text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition">
+                    <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                </div>
             </div>
         </div>
         
         <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            <div class="bg-white rounded-2xl p-4 border border-gray-100 space-y-3 skeleton">
+            <div class="bg-white rounded-2xl p-4 border border-gray-200 space-y-3 skeleton">
                 <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
                 <div class="h-4 bg-gray-200 rounded w-3/4"></div>
                 <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                <div class="h-8 bg-gray-200 rounded-xl w-full mt-2"></div>
+                <div class="h-10 bg-gray-200 rounded-xl w-full mt-2"></div>
             </div>
         </div>
     </main>
@@ -82,9 +95,11 @@
         let filteredProducts = [];
         let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
+        // صورة افتراضية تعبر عن الأجهزة الكهربائية والمنزلية
+        const fallbackImg = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=600&auto=format&fit=crop";
+
         async function fetchProducts() {
             try {
-                // جلب حقل image_url الخاص برابط صورة المنتج الحقيقية من Supabase
                 const { data, error } = await supabaseClient
                     .from("products")
                     .select("id_product, product_name, seal_price, pay_price, coasts_value, qte_in_stock, department, image_url");
@@ -95,16 +110,15 @@
                     return;
                 }
 
-                console.log("تم جلب البيانات بنجاح:", data);
-
                 if (data && data.length > 0) {
                     products = data;
                     filteredProducts = data;
                     renderProducts(filteredProducts);
                 } else {
                     document.getElementById("productsGrid").innerHTML = `
-                        <div class="col-span-full text-center py-12 text-gray-500 font-bold">
-                            ⚠️ لم يتم العثور على أي منتجات في الجدول.
+                        <div class="col-span-full text-center py-16 bg-white rounded-2xl border border-gray-200">
+                            <span class="text-4xl block mb-2">🔌</span>
+                            <p class="text-gray-500 font-bold">لا توجد أجهزة متوفرة حالياً في المخزن.</p>
                         </div>`;
                 }
             } catch (err) {
@@ -124,30 +138,45 @@
 
         function renderProducts(items) {
             let html = "";
-            const fallbackImg = "https://images.unsplash.com/photo-1479064555552-3ef4979f8908?q=80&w=500";
 
             items.forEach(p => {
                 let price = Number(p.seal_price) || Number(p.coasts_value) || Number(p.pay_price) || 0;
-                let productName = p.product_name || "منتج بدون اسم";
-                // الاستفادة من image_url الخاص بالمنتج
-                let imgSource = p.image_url ? p.image_url : fallbackImg;
+                let productName = p.product_name || "جهاز كهربائي";
+                let imgSource = (p.image_url && p.image_url.trim() !== "") ? p.image_url : fallbackImg;
+                let stock = p.qte_in_stock || 0;
 
                 html += `
-                <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
-                    <img src="${imgSource}" 
-                         alt="${productName}" 
-                         class="w-full h-48 object-cover rounded-xl bg-gray-100 mb-3" 
-                         loading="lazy"
-                         onerror="this.src='${fallbackImg}'">
-                    <div class="flex-1 flex flex-col justify-between gap-2">
-                        <div>
-                            <h3 class="font-bold text-gray-800 text-sm line-clamp-2">${productName}</h3>
-                            <div class="text-blue-600 font-extrabold text-base mt-1">${price.toFixed(2)} ج.س</div>
+                <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 flex flex-col justify-between p-4 transition duration-200 hover:shadow-lg hover:border-blue-300 relative group">
+                    <div>
+                        <div class="relative overflow-hidden rounded-xl bg-gray-50 mb-3 border border-gray-100">
+                            <img src="${imgSource}" 
+                                 alt="${productName}" 
+                                 class="w-full h-48 object-contain p-2 group-hover:scale-105 transition duration-300" 
+                                 loading="lazy"
+                                 onerror="this.onerror=null; this.src='${fallbackImg}';">
+                            ${p.department ? `<span class="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-md font-semibold">${p.department}</span>` : ''}
                         </div>
-                        <button onclick="addToCart(${p.id_product})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition text-xs mt-2 cursor-pointer active:scale-95">
-                            ➕ إضافة للسلة
-                        </button>
+                        
+                        <div class="space-y-1">
+                            <h3 class="font-bold text-slate-800 text-sm line-clamp-2 leading-snug">${productName}</h3>
+                            <div class="flex items-center justify-between pt-2">
+                                <div>
+                                    <span class="text-xs text-gray-400 block">السعر</span>
+                                    <span class="text-blue-700 font-extrabold text-lg">${price.toLocaleString('ar-SD')} <span class="text-xs font-normal">ج.س</span></span>
+                                </div>
+                                <div class="text-left">
+                                    <span class="text-[11px] px-2 py-0.5 rounded-full ${stock > 0 ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'bg-rose-50 text-rose-600'}">
+                                        ${stock > 0 ? `متوفر (${stock})` : 'غير متوفر'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <button onclick="addToCart(${p.id_product})" ${stock <= 0 ? 'disabled' : ''} class="w-full bg-slate-900 hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl transition text-xs mt-4 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm">
+                        <span>🛒</span>
+                        <span>إضافة إلى السلة</span>
+                    </button>
                 </div>`;
             });
             document.getElementById("productsGrid").innerHTML = html;
@@ -167,7 +196,7 @@
                     id_product: product.id_product,
                     product_name: product.product_name,
                     seal_price: finalPrice,
-                    image_url: product.image_url || '',
+                    image_url: product.image_url || fallbackImg,
                     quantity: 1 
                 });
             }
