@@ -75,6 +75,7 @@ width:auto;
 .edit{background:#ffc107; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;}
 .delete{background:#dc3545;color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;}
 .logout{background:#333;color:white;float:none;margin-bottom:10px}
+.btn-img{background:#17a2b8; color:white; width:100%; margin-top:0;}
 
 /* للشاشات الكبيرة */
 @media(min-width:768px){
@@ -111,6 +112,46 @@ height: 40px;
 object-fit: cover;
 border-radius: 5px;
 border: 1px solid #ccc;
+}
+
+/* التنسيق الخاص بمعاينة ورفع الصور */
+.image-selector-box {
+display: flex;
+align-items: center;
+gap: 10px;
+background: #f8f9fa;
+border: 1px dashed #ccc;
+padding: 5px 10px;
+border-radius: 5px;
+}
+
+.image-preview-thumb {
+width: 45px;
+height: 45px;
+object-fit: cover;
+border-radius: 5px;
+border: 1px solid #ddd;
+background: #fff;
+}
+
+/* النافذة المنبثقة Modal */
+.modal-overlay {
+position: fixed;
+top: 0; left: 0; right: 0; bottom: 0;
+background: rgba(0,0,0,0.5);
+display: none;
+justify-content: center;
+align-items: center;
+z-index: 1000;
+}
+
+.modal-content {
+background: white;
+padding: 20px;
+border-radius: 10px;
+width: 90%;
+max-width: 450px;
+box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
 </style>
@@ -165,7 +206,14 @@ border: 1px solid #ccc;
 
 <input id="department" placeholder="القسم (مثال: رجالي، نسائي)">
 
-<input id="image_url" placeholder="رابط الصورة (https://...)">
+<!-- قسم اختيار ومعاينة الصورة -->
+<div class="image-selector-box">
+    <img id="imgPreview" src="https://via.placeholder.com/45?text=No+Img" class="image-preview-thumb">
+    <div style="flex-grow: 1;">
+        <button type="button" class="btn-img" onclick="openImageModal()">🖼️ اختيار / تغيير الصورة</button>
+        <input type="hidden" id="image_url">
+    </div>
+</div>
 
 </div>
 
@@ -202,6 +250,26 @@ border: 1px solid #ccc;
 
 </div>
 
+<!-- نافذة اختيار الصورة المنبثقة Modal -->
+<div id="imageModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0; text-align:center;">إدراج / تغيير صورة المنتج</h3>
+        
+        <label style="font-size:12px; font-weight:bold;">1. رفع صورة من الجهاز:</label>
+        <input type="file" id="fileInput" accept="image/*" style="margin-top:5px; margin-bottom:15px;">
+        
+        <div style="text-align:center; color:#888; margin-bottom:15px;">— أو —</div>
+        
+        <label style="font-size:12px; font-weight:bold;">2. إلصاق رابط صورة خارجي (URL):</label>
+        <input type="url" id="urlInput" placeholder="https://example.com/image.jpg" style="margin-top:5px; margin-bottom:15px;">
+        
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button type="button" onclick="applyImage()" style="background:#28a745; color:white; width:auto;">تطبيق</button>
+            <button type="button" onclick="closeImageModal()" style="background:#6c757d; color:white; width:auto;">إلغاء</button>
+        </div>
+    </div>
+</div>
+
 <script>
 
 // تهيئة الاتصال بـ Supabase
@@ -212,8 +280,44 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let edit_id = null;
 let products = [];
 let categories = [];
+const fallbackImg = "https://via.placeholder.com/45?text=No+Img";
 
-// 1. حساب المخزون تلقائياً
+// 1. إدارة نافذة الصورة المعالجة
+function openImageModal() {
+    document.getElementById("urlInput").value = document.getElementById("image_url").value || "";
+    document.getElementById("fileInput").value = "";
+    document.getElementById("imageModal").style.display = "flex";
+}
+
+function closeImageModal() {
+    document.getElementById("imageModal").style.display = "none";
+}
+
+function applyImage() {
+    const fileInput = document.getElementById("fileInput");
+    const urlInput = document.getElementById("urlInput").value.trim();
+
+    if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            setPreviewImage(e.target.result);
+            closeImageModal();
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    } else if (urlInput !== "") {
+        setPreviewImage(urlInput);
+        closeImageModal();
+    } else {
+        alert("يرجى اختيار ملف أو إدخال رابط صورة");
+    }
+}
+
+function setPreviewImage(src) {
+    document.getElementById("image_url").value = src || "";
+    document.getElementById("imgPreview").src = src || fallbackImg;
+}
+
+// 2. حساب المخزون تلقائياً
 function autoCalculateStock() {
     const payQte = Number(document.getElementById("pay_qte").value) || 0;
     const piceQte = Number(document.getElementById("pice_qte").value) || 0;
@@ -222,7 +326,7 @@ function autoCalculateStock() {
     }
 }
 
-// 2. تحميل الأصناف من جدول categories في Supabase
+// 3. تحميل الأصناف من جدول categories في Supabase
 async function loadCategories(){
     try {
         const { data, error } = await supabaseClient
@@ -245,7 +349,7 @@ async function loadCategories(){
     }
 }
 
-// 3. تحميل المنتجات من جدول products في Supabase
+// 4. تحميل المنتجات من جدول products في Supabase
 async function loadProducts(){
     try {
         const { data, error } = await supabaseClient
@@ -262,7 +366,7 @@ async function loadProducts(){
     }
 }
 
-// 4. عرض جدول المنتجات
+// 5. عرض جدول المنتجات
 function renderTable(list){
     if (!list || list.length === 0) {
         document.getElementById("tableBody").innerHTML = `<tr><td colspan="9">لا توجد منتجات مسجلة.</td></tr>`;
@@ -270,7 +374,6 @@ function renderTable(list){
     }
 
     let html = "";
-    const fallbackImg = "https://via.placeholder.com/40?text=No+Img";
 
     list.forEach(p => {
         const catObj = categories.find(c => c.id_cat == p.id_cat);
@@ -294,7 +397,7 @@ function renderTable(list){
     document.getElementById("tableBody").innerHTML = html;
 }
 
-// 5. حفظ أو تعديل المنتج
+// 6. حفظ أو تعديل المنتج
 async function saveProduct(){
     const productName = document.getElementById("product_name").value.trim();
     if (!productName) {
@@ -346,7 +449,7 @@ async function saveProduct(){
     }
 }
 
-// 6. تعبئة النموذج للتعديل
+// 7. تعبئة النموذج للتعديل
 function editProduct(id){
     let p = products.find(x => x.id_product == id);
     if(!p) return;
@@ -369,7 +472,9 @@ function editProduct(id){
     document.getElementById("coasts_value").value = p.coasts_value || "";
     document.getElementById("id_cat").value = p.id_cat || "";
     document.getElementById("department").value = p.department || "";
-    document.getElementById("image_url").value = p.image_url || "";
+    
+    // ضبط معايرة وحقل الصورة
+    setPreviewImage(p.image_url || "");
 
     edit_id = id;
     document.getElementById("btnSave").textContent = "تحديث البيانات";
@@ -377,7 +482,7 @@ function editProduct(id){
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// 7. حذف منتج
+// 8. حذف منتج
 async function deleteProduct(id){
     if(!confirm(`تأكيد حذف المنتج رقم #${id}؟`)) return;
     try {
@@ -391,7 +496,7 @@ async function deleteProduct(id){
     }
 }
 
-// 8. بحث
+// 9. بحث
 function searchProduct(){
     let word = document.getElementById("searchBox").value.toLowerCase().trim();
     let filtered = products.filter(p =>
@@ -402,16 +507,17 @@ function searchProduct(){
     renderTable(filtered);
 }
 
-// 9. مسح الحقول
+// 10. مسح الحقول
 function clearForm(){
     document.querySelectorAll(".grid input").forEach(i => i.value = "");
     document.getElementById("id_cat").value = "";
+    setPreviewImage("");
     edit_id = null;
     document.getElementById("btnSave").textContent = "حفظ المنتج";
     document.getElementById("btnSave").style.background = "#28a745";
 }
 
-// 10. خروج
+// 11. خروج
 function logout(){
     window.location.href = "index.html";
 }
