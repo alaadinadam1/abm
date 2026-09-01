@@ -122,7 +122,7 @@
         let globalUsers = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات جدول المستخدمين tb_users
+        // 1. جلب بيانات المستخدمين
         async function fetchUsers() {
             try {
                 const { data, error } = await supabaseClient
@@ -139,7 +139,7 @@
             }
         }
 
-        // 2. الحصول على بيانات المسوق المطابق من قائمة المستخدمين
+        // 2. البحث عن بيانات المسوق
         function getUserData(userId) {
             const user = globalUsers.find(u => u.id == userId || u.id === Number(userId));
             if (user) {
@@ -151,9 +151,10 @@
             return { name: 'غير محدد', account: 'غير مسجل' };
         }
 
-        // 3. جلب الطلبات والمنتجات
+        // 3. جلب الطلبات (Async معالجة بالكامل)
         async function fetchOrders() {
             try {
+                // جلب المستخدمين أولاً
                 await fetchUsers();
 
                 const { data: orders, error } = await supabaseClient
@@ -195,7 +196,7 @@
             }
         }
 
-        // 4. عرض البيانات في الجدول والكروت
+        // 4. عرض البيانات في الواجهة
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -266,7 +267,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 5. حساب العمولة الإجمالية للطلب
+        // 5. حساب العمولة
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -289,7 +290,7 @@
             return totalCommission;
         }
 
-        // 6. عرض الفاتورة التفصيلية
+        // 6. فتح النافذة المنبثقة
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -337,7 +338,6 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <!-- بيانات العميل -->
                         <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
                             <span class="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">بيانات العميل</span>
                             <div class="font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</div>
@@ -346,7 +346,6 @@
                             <div><b class="text-slate-700">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
 
-                        <!-- بيانات المستخدم من tb_users -->
                         <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
                             <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المسوق (tb_users)</span>
                             <div><b class="text-purple-900">👤 الاسم:</b> <span class="font-bold text-purple-800">${user.name}</span></div>
@@ -395,7 +394,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 7. مشاركة ونسخ النص
+        // 7. المشاركة والنسخ
         function buildShareText(order, commission) {
             const user = getUserData(order.id_user);
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
@@ -457,7 +456,10 @@
             }
         }
 
-        window.onload = fetchOrders;
+        // تشغيل التحميل عند اكتمال تحميل المستند آمن وبدون تعارض
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchOrders();
+        });
     </script>
 </body>
 </html>
