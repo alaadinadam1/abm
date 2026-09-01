@@ -124,15 +124,10 @@
         // 1. جلب الطلبات
         async function fetchOrders() {
             try {
-                // جلب web_orders مع الربط بـ tb_users المعتمد على العمود id
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
                         *,
-                        tb_users (
-                            fullname,
-                            bank_account
-                        ),
                         web_order_details (
                             id_product,
                             product_name,
@@ -147,31 +142,8 @@
                     `)
                     .order('date_created', { ascending: false });
 
-                if (error) {
-                    // في حال تطلب الاستعلام الخالي من الربط التلقائي
-                    const { data: simpleOrders, error: simpleError } = await supabaseClient
-                        .from('web_orders')
-                        .select(`
-                            *,
-                            web_order_details (
-                                id_product,
-                                product_name,
-                                qte,
-                                price,
-                                amount,
-                                products (
-                                    id_product,
-                                    commission
-                                )
-                            )
-                        `)
-                        .order('date_created', { ascending: false });
-
-                    if (simpleError) throw simpleError;
-                    globalOrders = simpleOrders || [];
-                } else {
-                    globalOrders = orders || [];
-                }
+                if (error) throw error;
+                globalOrders = orders || [];
                 
                 const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
                 document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
@@ -275,38 +247,27 @@
             return totalCommission;
         }
 
-        // 4. استخراج وجلب بيانات المسوق بواسطة المعرف id
+        // 4. جلب البيانات مباشرة من جدول tb_users باستخدام id و usertype
         async function fetchMarketerData(order) {
-            // التحقق أولاً إذا كان الربط التلقائي عبر JOIN قد جلب بيانات tb_users
-            if (order.tb_users) {
-                const u = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
-                if (u && (u.fullname || u.bank_account)) {
-                    return {
-                        fullname: u.fullname || 'غير محدد',
-                        bank_account: u.bank_account || 'غير مسجل'
-                    };
-                }
-            }
-
-            // الاعتماد المباشر على قيمة id الموجودة في سجل الطلب web_orders
-            const userId = order.id;
+            // المعرف المسجل في جدول الطلبات المرتبط بجدول tb_users
+            const userId = order.id || order.id_user || order.user_id;
 
             if (userId) {
                 try {
                     const { data: userData, error } = await supabaseClient
                         .from('tb_users')
-                        .select('fullname, bank_account')
+                        .select('id, username, usertype, fullname, bank_account')
                         .eq('id', userId)
                         .maybeSingle();
 
                     if (!error && userData) {
                         return {
-                            fullname: userData.fullname || 'غير محدد',
+                            fullname: userData.fullname || userData.username || 'غير محدد',
                             bank_account: userData.bank_account || 'غير مسجل'
                         };
                     }
                 } catch (e) {
-                    console.error("خطأ الاستعلام المباشر من tb_users:", e);
+                    console.error("خطأ استعلام tb_users:", e);
                 }
             }
 
@@ -320,7 +281,7 @@
 
             currentActiveOrder = order;
             
-            // جلب البيانات الدقيقة للمسوق باستخدام المعرف id
+            // جلب البيانات مباشرة وبدقة من tb_users
             activeMarketerData = await fetchMarketerData(order);
 
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
@@ -363,7 +324,7 @@
                         </div>
                     </div>
 
-                    <!-- بيانات العميل والمسوق الحقيقي -->
+                    <!-- بيانات العميل والمسوق -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 space-y-1.5">
                             <div class="flex items-center justify-between">
@@ -378,7 +339,7 @@
                             </div>
                         </div>
 
-                        <!-- بيانات المسوق الحقيقية المجلوبة بواسطة المعرف id -->
+                        <!-- البيانات المجلوبة مباشرة من tb_users -->
                         <div class="bg-indigo-50/60 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-500 uppercase">بيانات المسوق</span>
