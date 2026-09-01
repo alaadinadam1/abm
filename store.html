@@ -16,6 +16,7 @@
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased">
 
+    <!-- Top Announcement Bar -->
     <div class="bg-slate-900 text-white text-xs py-2 px-4 border-b border-slate-800">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
             <div class="font-semibold text-slate-300 flex items-center gap-2">
@@ -34,6 +35,7 @@
         </div>
     </div>
 
+    <!-- Navigation Header -->
     <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -50,6 +52,7 @@
         </div>
     </nav>
 
+    <!-- Hero Banner (Home Appliances Theme) -->
     <header class="relative bg-slate-900 text-white py-16 px-4 text-center overflow-hidden">
         <div class="absolute inset-0 opacity-25 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=1200&auto=format&fit=crop');"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
@@ -60,11 +63,13 @@
         </div>
     </header>
 
+    <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Controls & Search -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
             <div>
                 <h2 class="text-lg font-bold text-slate-900">📦 قائمة المنتجات والقطع المتاحة</h2>
-                <p class="text-xs text-gray-500">تصفح المنتجات المتوفرة حالياً في المخزن</p>
+                <p class="text-xs text-gray-500">تصفح المنتجات المتوفرة حالياً في المتجر</p>
             </div>
             
             <div class="w-full md:w-96">
@@ -75,7 +80,9 @@
             </div>
         </div>
         
+        <!-- Products Grid -->
         <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <!-- Skeleton Loader -->
             <div class="bg-white rounded-2xl p-4 border border-gray-200 space-y-3 skeleton">
                 <div class="w-full h-48 bg-gray-200 rounded-xl"></div>
                 <div class="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -102,7 +109,7 @@
             try {
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, pay_price, coasts_value, qte_in_stock, department, image_url");
+                    .select("id_product, product_name, seal_price, pay_price, coasts_value, department, image_url");
 
                 if (error) {
                     console.error("تفاصيل خطأ Supabase:", error);
@@ -118,7 +125,7 @@
                     document.getElementById("productsGrid").innerHTML = `
                         <div class="col-span-full text-center py-16 bg-white rounded-2xl border border-gray-200">
                             <span class="text-4xl block mb-2">🔌</span>
-                            <p class="text-gray-500 font-bold">لا توجد أجهزة متوفرة حالياً في المخزن.</p>
+                            <p class="text-gray-500 font-bold">لا توجد أجهزة متوفرة حالياً.</p>
                         </div>`;
                 }
             } catch (err) {
@@ -143,7 +150,6 @@
                 let price = Number(p.seal_price) || Number(p.coasts_value) || Number(p.pay_price) || 0;
                 let productName = p.product_name || "جهاز كهربائي";
                 let imgSource = (p.image_url && p.image_url.trim() !== "") ? p.image_url : fallbackImg;
-                let stock = p.qte_in_stock || 0;
 
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200 flex flex-col justify-between p-4 transition duration-200 hover:shadow-lg hover:border-blue-300 relative group">
@@ -159,21 +165,14 @@
                         
                         <div class="space-y-1">
                             <h3 class="font-bold text-slate-800 text-sm line-clamp-2 leading-snug">${productName}</h3>
-                            <div class="flex items-center justify-between pt-2">
-                                <div>
-                                    <span class="text-xs text-gray-400 block">السعر</span>
-                                    <span class="text-blue-700 font-extrabold text-lg">${price.toLocaleString('ar-SD')} <span class="text-xs font-normal">ج.س</span></span>
-                                </div>
-                                <div class="text-left">
-                                    <span class="text-[11px] px-2 py-0.5 rounded-full ${stock > 0 ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'bg-rose-50 text-rose-600'}">
-                                        ${stock > 0 ? `متوفر (${stock})` : 'غير متوفر'}
-                                    </span>
-                                </div>
+                            <div class="pt-2">
+                                <span class="text-xs text-gray-400 block">السعر</span>
+                                <span class="text-blue-700 font-extrabold text-lg">${price.toLocaleString('ar-SD')} <span class="text-xs font-normal">ج.س</span></span>
                             </div>
                         </div>
                     </div>
 
-                    <button onclick="addToCart(${p.id_product})" ${stock <= 0 ? 'disabled' : ''} class="w-full bg-slate-900 hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl transition text-xs mt-4 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm">
+                    <button onclick="addToCart(${p.id_product})" class="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl transition text-xs mt-4 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm">
                         <span>🛒</span>
                         <span>إضافة إلى السلة</span>
                     </button>
