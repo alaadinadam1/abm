@@ -3,317 +3,414 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم - إدارة الطلبات والفواتير</title>
-    <!-- Bootstrap 5 RTL -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase JS CDN -->
+    <title>إدارة طلبات الموقع</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .invoice-box { background: #fff; padding: 25px; border-radius: 8px; border: 1px solid #dee2e6; }
+        body { font-family: 'Cairo', sans-serif; }
         
-        /* إعدادات خاصة بطباعة الفاتورة فقط */
+        /* تحسينات الطباعة */
         @media print {
-            body * { visibility: hidden; }
-            #printable-invoice, #printable-invoice * { visibility: visible; }
-            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; border: none; }
-            .no-print { display: none !important; }
+            body * {
+                visibility: hidden;
+            }
+            #printableInvoice, #printableInvoice * {
+                visibility: visible;
+            }
+            #printableInvoice {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: auto;
+                margin: 0;
+                padding: 20px !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: white !important;
+            }
+            .no-print {
+                display: none !important;
+            }
         }
     </style>
 </head>
-<body class="py-4">
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8 min-h-screen">
 
-<div class="container-fluid px-4">
-    <h3 class="mb-4 text-dark no-print"><i class="fas fa-tasks me-2"></i> لوحة التحكم - قائمة الطلبات</h3>
-
-    <!-- جدول الطلبات -->
-    <div class="card shadow-sm mb-4 no-print">
-        <div class="card-header bg-white py-3">
-            <h5 class="m-0 text-primary">الطلبات الواردة</h5>
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- شريط العنوان والبطاقات الإحصائية -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <div>
+                <h1 class="text-2xl font-black text-gray-900">📦 لوحة التحكم: إدارة الطلبات</h1>
+                <p class="text-xs text-gray-500 mt-1">متابعة طلبات العملاء وطباعة الفواتير والإحصائيات</p>
+            </div>
+            
+            <div class="flex items-center gap-4 w-full md:w-auto">
+                <div class="bg-blue-50 border border-blue-100 px-5 py-2.5 rounded-2xl text-left flex-1 md:flex-none">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">إجمالي المشتريات</span>
+                    <span id="totalRevenue" class="text-xl font-black text-blue-900">0.00 ج.س</span>
+                </div>
+                
+                <button onclick="fetchOrders()" class="bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 px-5 rounded-2xl text-xs transition flex items-center gap-2 shadow-sm">
+                    🔄 تحديث
+                </button>
+            </div>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>رقم الطلب</th>
-                            <th>العميل</th>
-                            <th>الهاتف</th>
-                            <th>العنوان</th>
-                            <th>تاريخ الطلب</th>
-                            <th>الحالة</th>
-                            <th>الإجمالي</th>
-                            <th>الإجراءات</th>
+
+        <!-- الجدول الرئيسي -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right border-collapse text-xs md:text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
+                            <th class="p-4">رقم الطلب</th>
+                            <th class="p-4">العميل والهاتف</th>
+                            <th class="p-4">العنوان</th>
+                            <th class="p-4">المبلغ الإجمالي</th>
+                            <th class="p-4">تاريخ الطلب</th>
+                            <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
-                    <tbody id="orders-list">
-                        <!-- تُعرض عناصر الطلبات بواسطة JS -->
+                    <tbody id="ordersTableBody">
+                        <tr>
+                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- نافذة طباعة وعرض الفاتورة (Modal) -->
-    <div class="modal fade" id="invoiceModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header no-print">
-                    <h5 class="modal-title">تفاصيل الفاتورة</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- النافذة المنبثقة للفاتورة Modal -->
+    <div id="invoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden my-6 relative flex flex-col border border-gray-100 animate-in fade-in zoom-in duration-200">
+            
+            <!-- شريط رأس النافذة المنبثقة -->
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center no-print border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h3 class="font-bold text-xs tracking-wide">معاينة الفاتورة قبل الطباعة</h3>
                 </div>
-                <div class="modal-body">
-                    <!-- هيكل الفاتورة المطبوعة -->
-                    <div id="printable-invoice" class="invoice-box">
-                        <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-                            <div>
-                                <h2>فاتورة مبيعات</h2>
-                                <p class="text-muted m-0">رقم الفاتورة: #<span id="inv-id"></span></p>
-                            </div>
-                            <div class="text-end">
-                                <h4 class="text-primary m-0">اسم المتجر / الشعار</h4>
-                                <small class="text-muted">التاريخ: <span id="inv-date"></span></small>
-                            </div>
-                        </div>
+                <button onclick="closeInvoiceModal()" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-sm transition">✕</button>
+            </div>
 
-                        <div class="row mb-4">
-                            <div class="col-6">
-                                <h6>بيانات الزبون:</h6>
-                                <p class="mb-1"><strong>الاسم:</strong> <span id="inv-client-name"></span></p>
-                                <p class="mb-1"><strong>الهاتف:</strong> <span id="inv-client-phone"></span></p>
-                                <p class="mb-1"><strong>هاتف إضافي:</strong> <span id="inv-client-phone2"></span></p>
-                                <p class="mb-0"><strong>العنوان:</strong> <span id="inv-client-address"></span></p>
-                            </div>
-                        </div>
+            <!-- محتوى الفاتورة المصمم بعناية -->
+            <div id="modalInvoiceCard" class="p-6 md:p-8 overflow-y-auto text-gray-800 bg-white">
+                <!-- يتم حقن تصميم الفاتورة هنا عن طريق JavaScript -->
+            </div>
 
-                        <table class="table table-bordered mb-4">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>اسم المنتج</th>
-                                    <th>الكمية</th>
-                                    <th>السعر الفردي</th>
-                                    <th>العمولة (للقطعة)</th>
-                                    <th>الإجمالي</th>
-                                </tr>
-                            </thead>
-                            <tbody id="inv-items-body">
-                                <!-- تفاصيل عناصر الفاتورة -->
-                            </tbody>
-                        </table>
-
-                        <div class="row justify-content-end">
-                            <div class="col-md-5">
-                                <table class="table table-sm table-borderless">
-                                    <tr>
-                                        <td><strong>إجمالي العمولة:</strong></td>
-                                        <td class="text-end text-primary fw-bold" id="inv-total-commission">0 د.ل</td>
-                                    </tr>
-                                    <tr class="border-top fs-5">
-                                        <td><strong>المجموع الإجمالي:</strong></td>
-                                        <td class="text-end text-success fw-bold" id="inv-total-amount">0 د.ل</td>
-                                    </tr>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer no-print">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-
-                    <!-- تغيير حالة الطلب -->
-                    <select id="update-status-select" class="form-select w-auto me-2">
-                        <option value="قيد المراجعة">قيد المراجعة</option>
-                        <option value="تم التأكيد">تم التأكيد</option>
-                        <option value="تم الشحن">تم الشحن</option>
-                        <option value="مكتمل">مكتمل</option>
-                        <option value="ملغي">ملغي</option>
-                    </select>
-                    <button type="button" class="btn btn-primary" onclick="changeOrderStatus()">تحديث الحالة</button>
-                    
-                    <button type="button" class="btn btn-dark" onclick="window.print()">
-                        <i class="fas fa-print me-1"></i> طباعة الفاتورة
+            <!-- أزرار الإجراءات والمشاركة -->
+            <div class="bg-gray-50/90 border-t border-gray-100 p-4 flex flex-wrap gap-2 justify-between items-center no-print">
+                <button onclick="closeInvoiceModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-xs transition">
+                    إغلاق
+                </button>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="sendToCustomWhatsapp()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm">
+                        💬 إرسال عبر واتساب
+                    </button>
+                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm">
+                        📋 نسخ النص
+                    </button>
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm">
+                        🖨️ طباعة
                     </button>
                 </div>
             </div>
+
         </div>
     </div>
 
-</div>
+    <script>
+        const supabaseClient = supabase.createClient(
+            "https://ihlwkwiimimoiplfqcdk.supabase.co",
+            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
+        );
 
-<!-- Bootstrap 5 JS Bundle -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        let globalOrders = [];
+        let currentActiveOrder = null;
 
-<script>
-    // ⚠️ تنبيه: ضع هنا بيانات حسابك الحقيقي في Supabase
-    const SUPABASE_URL = 'https://YOUR_SUPABASE_URL.supabase.co';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 1. جلب بيانات الطلبات
+        async function fetchOrders() {
+            try {
+                const { data: orders, error } = await supabaseClient
+                    .from('web_orders')
+                    .select(`
+                        id_web_order,
+                        client_name,
+                        client_phone,
+                        client_second_phone,
+                        client_address,
+                        total_amount,
+                        date_created,
+                        web_order_details (
+                            id_product,
+                            product_name,
+                            qte,
+                            price,
+                            amount,
+                            commission
+                        )
+                    `)
+                    .order('date_created', { ascending: false });
 
-    let currentSelectedOrderId = null;
-    let invoiceModalInstance = null;
+                if (error) throw error;
+                globalOrders = orders || [];
+                
+                const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+                document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
 
-    document.addEventListener('DOMContentLoaded', () => {
-        invoiceModalInstance = new bootstrap.Modal(document.getElementById('invoiceModal'));
-        loadOrders();
-    });
+                renderOrders(globalOrders);
 
-    // تحميل الطلبات مع عرض الأخطاء التفصيلية في الصفحة
-    async function loadOrders() {
-        const tbody = document.getElementById('orders-list');
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">جاري التحميل...</td></tr>';
-
-        if (SUPABASE_URL.includes('YOUR_SUPABASE_URL')) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4"><strong>خطأ:</strong> يرجى وضع رابط Supabase ومفتاح ANON_KEY الصحيحين داخل السكربت.</td></tr>';
-            return;
+            } catch (err) {
+                console.error("خطأ عند جلب الطلبات:", err);
+                alert("فشل جلب البيانات: " + (err.message || JSON.stringify(err)));
+            }
         }
 
-        try {
-            const { data: orders, error } = await supabaseClient
-                .from('web_orders')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error("Supabase Error Details:", error);
-                throw error;
-            }
-
-            tbody.innerHTML = '';
+        // 2. عرض البيانات بالجدول الرئيسي
+        function renderOrders(orders) {
+            const tbody = document.getElementById('ordersTableBody');
             if (!orders || orders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">لا توجد طلبات متوفرة في الجدول.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
                 return;
             }
 
+            let html = '';
             orders.forEach(order => {
-                const tr = document.createElement('tr');
-                const createdDate = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-LY') : '-';
+                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
 
-                tr.innerHTML = `
-                    <td><strong>#${order.id_web_order}</strong></td>
-                    <td>${order.client_name || '-'}</td>
-                    <td>${order.client_phone || '-'}</td>
-                    <td>${order.client_address || '-'}</td>
-                    <td>${createdDate}</td>
-                    <td><span class="badge bg-${getStatusBadgeClass(order.order_status)}">${order.order_status || 'قيد المراجعة'}</span></td>
-                    <td class="fw-bold text-success">${order.total_amount || 0} د.ل</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="openInvoice(${order.id_web_order})">
-                            <i class="fas fa-file-invoice me-1"></i> الفاتورة
-                        </button>
+                html += `
+                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
+                    <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
+                    <td class="p-4">
+                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
+                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">
+                            📱 ${order.client_phone || ''}
+                        </div>
+                        ${order.client_second_phone ? `<div class="text-gray-400 text-xs dir-ltr">📞 ${order.client_second_phone}</div>` : ''}
                     </td>
-                `;
-                tbody.appendChild(tr);
+                    <td class="p-4 text-xs font-medium text-gray-600">
+                        ${order.client_address || 'لم يحدد'}
+                    </td>
+                    <td class="p-4 font-extrabold text-blue-600">${Number(order.total_amount || 0).toFixed(2)} ج.س</td>
+                    <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
+                    <td class="p-4">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
+                                👁️ عرض
+                            </button>
+                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
+                                🗑️ حذف
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
             });
 
-        } catch (err) {
-            console.error("خطأ في جلب الطلبات:", err);
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">حدث خطأ أثناء تحميل الطلبات:<br><small>${err.message || JSON.stringify(err)}</small></td></tr>`;
+            tbody.innerHTML = html;
         }
-    }
 
-    // عرض الفاتورة
-    async function openInvoice(orderId) {
-        currentSelectedOrderId = orderId;
+        // 3. حذف الطلب
+        async function deleteOrder(orderId) {
+            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId} بشكل نهائي؟`)) return;
 
-        try {
-            const { data: order, error: orderErr } = await supabaseClient
-                .from('web_orders')
-                .select('*')
-                .eq('id_web_order', orderId)
-                .single();
+            try {
+                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
+                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
 
-            if (orderErr) throw orderErr;
+                if (error) throw error;
 
-            const { data: details, error: detailsErr } = await supabaseClient
-                .from('web_order_details')
-                .select('*')
-                .eq('id_web_order', orderId);
+                alert('تم حذف الطلب بنجاح');
+                fetchOrders();
 
-            if (detailsErr) throw detailsErr;
+            } catch (err) {
+                console.error("خطأ الحذف:", err);
+                alert("تعذر حذف الطلب: " + err.message);
+            }
+        }
 
-            document.getElementById('inv-id').innerText = order.id_web_order;
-            document.getElementById('inv-date').innerText = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-LY') : '-';
-            document.getElementById('inv-client-name').innerText = order.client_name || '';
-            document.getElementById('inv-client-phone').innerText = order.client_phone || '';
-            document.getElementById('inv-client-phone2').innerText = order.client_second_phone || '-';
-            document.getElementById('inv-client-address').innerText = order.client_address || '';
-            document.getElementById('update-status-select').value = order.order_status || 'قيد المراجعة';
+        // 4. عرض الفاتورة
+        function openInvoiceModal(orderId) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (!order) return;
 
-            const tbody = document.getElementById('inv-items-body');
-            tbody.innerHTML = '';
+            currentActiveOrder = order;
+            const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+            const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
 
+            let itemsRows = '';
             let totalCommission = 0;
 
-            if (details && details.length > 0) {
-                details.forEach((item, index) => {
-                    const qte = item.qte || 1;
-                    const price = item.price || 0;
-                    const itemCommission = item.commission || 0;
-                    const itemTotal = price * qte;
+            if (order.web_order_details && order.web_order_details.length > 0) {
+                order.web_order_details.forEach(item => {
+                    const itemTotal = item.amount || ((item.qte || 0) * (item.price || 0));
+                    totalCommission += Number(item.commission || 0) * Number(item.qte || 1);
 
-                    totalCommission += (itemCommission * qte);
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${index + 1}</td>
-                        <td>${item.product_name || '-'}</td>
-                        <td>${qte}</td>
-                        <td>${price} د.ل</td>
-                        <td>${itemCommission} د.ل</td>
-                        <td>${itemTotal} د.ل</td>
+                    itemsRows += `
+                        <tr class="border-b border-gray-100 text-xs text-gray-700">
+                            <td class="py-3 text-right font-semibold text-gray-800">${item.product_name || '-'}</td>
+                            <td class="py-3 text-center font-bold text-gray-500">${item.qte || 0}</td>
+                            <td class="py-3 text-center font-medium text-gray-500">${Number(item.price || 0).toFixed(2)}</td>
+                            <td class="py-3 text-left font-extrabold text-gray-900">${Number(itemTotal).toFixed(2)}</td>
+                        </tr>
                     `;
-                    tbody.appendChild(tr);
+                });
+            } else {
+                itemsRows = `<tr><td colspan="4" class="py-6 text-center text-gray-400 text-xs">لا توجد منتجات مسجلة لهذا الطلب</td></tr>`;
+            }
+
+            const invoiceHtml = `
+                <div id="printableInvoice" class="space-y-6">
+                    
+                    <!-- الهيدر الرئيسي للفاتورة -->
+                    <div class="flex justify-between items-start border-b border-gray-100 pb-5">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm">S</div>
+                                <span class="text-xs font-bold text-gray-400 tracking-wider">فاتورة مبيعات</span>
+                            </div>
+                            <h2 class="text-2xl font-black text-gray-900 mt-2">طلب #${order.id_web_order}</h2>
+                        </div>
+                        <div class="text-left">
+                            <span class="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-full mb-1">طلب مكتمل</span>
+                            <div class="text-[11px] font-bold text-gray-500">${date}</div>
+                            <div class="text-[10px] font-medium text-gray-400 dir-ltr">${time}</div>
+                        </div>
+                    </div>
+
+                    <!-- تفاصيل العميل والموقع -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">معلومات العميل</span>
+                            <span class="text-[11px] font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
+                        </div>
+                        <div class="h-px bg-slate-200/60 my-1"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-600">
+                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr inline-block">${order.client_phone || '-'}</span></div>
+                            ${order.client_second_phone ? `<div><b class="text-slate-800">📞 هاتف ثانوي:</b> <span class="dir-ltr inline-block">${order.client_second_phone}</span></div>` : ''}
+                            <div class="md:col-span-2"><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+                        </div>
+                    </div>
+
+                    <!-- جدول المنتجات -->
+                    <div class="space-y-2">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-200 text-gray-400 font-bold uppercase text-[10px] tracking-wider">
+                                    <th class="py-2 text-right">المنتج</th>
+                                    <th class="py-2 text-center">الكمية</th>
+                                    <th class="py-2 text-center">السعر</th>
+                                    <th class="py-2 text-left">الإجمالي</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                ${itemsRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- كرت الإجمالي والعمولة -->
+                    <div class="pt-4 border-t border-gray-100 space-y-2">
+                        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 rounded-2xl flex justify-between items-center shadow-md">
+                            <div>
+                                <span class="text-[10px] font-bold opacity-80 uppercase block">المبلغ الإجمالي المطلوب</span>
+                                <span class="text-2xl font-black">${Number(order.total_amount || 0).toFixed(2)} <span class="text-xs font-normal">ج.س</span></span>
+                            </div>
+                            <div class="text-left">
+                                <span class="text-xs bg-white/20 px-3 py-1 rounded-lg backdrop-blur-sm font-semibold">حساب مدفوع</span>
+                            </div>
+                        </div>
+
+                        <!-- العمولة المعروضة بأناقة سفلية -->
+                        <div class="flex justify-between items-center px-3 py-1.5 text-xs text-gray-500 font-medium">
+                            <span>العمولة المستحقة للطلب:</span>
+                            <span class="font-bold text-gray-800">${Number(totalCommission).toFixed(2)} ج.س</span>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+
+            document.getElementById('modalInvoiceCard').innerHTML = invoiceHtml;
+            document.getElementById('invoiceModal').classList.remove('hidden');
+        }
+
+        // 5. إغلاق النافذة
+        function closeInvoiceModal() {
+            document.getElementById('invoiceModal').classList.add('hidden');
+        }
+
+        // 6. تجميع النص المنسق للفاتورة
+        function buildShareText(order, commission) {
+            let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
+            text += `👤 *العميل:* ${order.client_name || '-'}\n`;
+            text += `📱 *الهاتف:* ${order.client_phone || '-'}\n`;
+            text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
+            text += `------------------------------\n`;
+            text += `🛒 *المنتجات:*\n`;
+
+            if (order.web_order_details && order.web_order_details.length > 0) {
+                order.web_order_details.forEach(item => {
+                    text += `• ${item.product_name} (${item.qte} × ${item.price}) = ${item.amount || (item.qte * item.price)} ج.س\n`;
                 });
             }
 
-            document.getElementById('inv-total-commission').innerText = totalCommission + ' د.ل';
-            document.getElementById('inv-total-amount').innerText = (order.total_amount || 0) + ' د.ل';
-
-            invoiceModalInstance.show();
-
-        } catch (err) {
-            console.error("خطأ قراءة تفاصيل الطلب:", err);
-            alert("تعذر جلب بيانات الفاتورة: " + (err.message || ''));
+            text += `------------------------------\n`;
+            text += `💰 *الإجمالي النهائي:* ${Number(order.total_amount || 0).toFixed(2)} ج.س\n`;
+            text += `💵 *العمولة:* ${Number(commission).toFixed(2)} ج.س\n`;
+            return text;
         }
-    }
 
-    // تحديث الحالة
-    async function changeOrderStatus() {
-        if (!currentSelectedOrderId) return;
-        const newStatus = document.getElementById('update-status-select').value;
+        // 7. توجيه بيانات الفاتورة إلى أي رقم يتم إدخاله أو اختياره
+        function sendToCustomWhatsapp() {
+            if (!currentActiveOrder) return;
 
-        try {
-            const { error } = await supabaseClient
-                .from('web_orders')
-                .update({ order_status: newStatus })
-                .eq('id_web_order', currentSelectedOrderId);
+            let totalCommission = 0;
+            if (currentActiveOrder.web_order_details) {
+                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
+            }
 
-            if (error) throw error;
+            const phone1 = currentActiveOrder.client_phone || '';
+            const phone2 = currentActiveOrder.client_second_phone || '';
 
-            alert("تم تحديث حالة الطلب بنجاح!");
-            invoiceModalInstance.hide();
-            loadOrders();
+            let promptMsg = "أدخل رقم الواتساب الذي تريد إرسال الفاتورة إليه:\n";
+            if (phone1) promptMsg += `1- الرقم الأول: ${phone1}\n`;
+            if (phone2) promptMsg += `2- الرقم الثاني: ${phone2}\n`;
+            promptMsg += "أو اكتب أي رقم جديد مباشرةً (مع مفتاح الدولة):";
 
-        } catch (err) {
-            console.error("خطأ التحديث:", err);
-            alert("فشل تحديث حالة الطلب: " + (err.message || ''));
+            let inputPhone = prompt(promptMsg, phone1);
+
+            if (!inputPhone) return;
+
+            // استخراج الأرقام فقط من المدخلات
+            let cleanPhone = inputPhone.replace(/[^0-9]/g, '');
+
+            if (!cleanPhone) {
+                alert("يرجى إدخال رقم هاتف صحيح!");
+                return;
+            }
+
+            const shareText = buildShareText(currentActiveOrder, totalCommission);
+            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(shareText)}`, '_blank');
         }
-    }
 
-    function getStatusBadgeClass(status) {
-        switch (status) {
-            case 'قيد المراجعة': return 'warning text-dark';
-            case 'تم التأكيد': return 'info text-dark';
-            case 'تم الشحن': return 'primary';
-            case 'مكتمل': return 'success';
-            case 'ملغي': return 'danger';
-            default: return 'secondary';
+        // 8. نسخ النص
+        function copyInvoiceText() {
+            if (!currentActiveOrder) return;
+            let totalCommission = 0;
+            if (currentActiveOrder.web_order_details) {
+                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
+            }
+            const text = buildShareText(currentActiveOrder, totalCommission);
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert("تم نسخ الفاتورة النصية بنجاح!");
+            }).catch(() => alert("تعذر النسخ"));
         }
-    }
-</script>
+
+        window.onload = fetchOrders;
+    </script>
 </body>
 </html>
