@@ -120,7 +120,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات وقيمة العمولة المباشرة من جدول products
+        // 1. جلب الطلبات وجدول المستخدمين tb_users المربوط بـ id_user أو tb_users
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -133,6 +133,10 @@
                         client_address,
                         total_amount,
                         date_created,
+                        tb_users (
+                            fullname,
+                            bank_account
+                        ),
                         web_order_details (
                             id_product,
                             product_name,
@@ -252,7 +256,7 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية وعرض الرقمين دائماً
+        // 4. عرض الفاتورة بالعمولة الحقيقية وبيانات المسوق
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -260,6 +264,11 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            // بيانات المسوق من tb_users
+            const marketer = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
+            const marketerName = marketer?.fullname || 'غير محدد';
+            const bankAccount = marketer?.bank_account || 'غير مسجل';
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -298,16 +307,32 @@
                         </div>
                     </div>
 
-                    <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 text-xs space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
-                            <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
+                    <!-- بيانات العميل والمسوق -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
+                                <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
+                            </div>
+                            <div class="h-px bg-slate-200/60 my-1"></div>
+                            <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
+                                <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
+                                <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
+                                <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+                            </div>
                         </div>
-                        <div class="h-px bg-slate-200/60 my-1"></div>
-                        <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+
+                        <!-- قسم المسوق المضاف -->
+                        <div class="bg-indigo-50/50 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-400 uppercase">المسوق</span>
+                                <span class="text-xs font-bold text-indigo-950">${marketerName}</span>
+                            </div>
+                            <div class="h-px bg-indigo-200/50 my-1"></div>
+                            <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
+                                <div><b class="text-slate-800">👤 اسم المسوق:</b> ${marketerName}</div>
+                                <div><b class="text-slate-800">💳 الحساب البنكي:</b> <span class="font-semibold text-slate-900 dir-ltr">${bankAccount}</span></div>
+                            </div>
                         </div>
                     </div>
 
@@ -352,13 +377,20 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك للواتساب والنسخ مع الرقمين
+        // 5. النص المشارك للواتساب والنسخ شاملاً بيانات المسوق
         function buildShareText(order, commission) {
+            const marketer = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
+            const marketerName = marketer?.fullname || 'غير محدد';
+            const bankAccount = marketer?.bank_account || 'غير مسجل';
+
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
+            text += `------------------------------\n`;
+            text += `🙋‍♂️ *المسوق:* ${marketerName}\n`;
+            text += `💳 *رقم الحساب البنكي:* ${bankAccount}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
@@ -374,7 +406,7 @@
             return text;
         }
 
-        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
+        // 6. فتح الواتساب تلقائياً
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
