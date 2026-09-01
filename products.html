@@ -1,306 +1,395 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إدارة المنتجات - لوحة التحكم</title>
-    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>إدارة المنتجات</title>
+
     <style>
-        body { font-family: 'Cairo', sans-serif; }
+        body {
+            font-family: Tahoma, sans-serif;
+            background: #f4f6f9;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        /* للشاشات الكبيرة */
+        @media(min-width:768px) {
+            .grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        /* للشاشات الكبيرة */
+        @media(min-width:768px) {
+            button {
+                width: auto;
+            }
+        }
+
+        .save { background: #28a745; color: white; }
+        .edit { background: #ffc107; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        .delete { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        .logout { background: #333; color: white; float: none; margin-bottom: 10px; }
+
+        /* للشاشات الكبيرة */
+        @media(min-width:768px) {
+            .logout { float: left; }
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            min-width: 600px;
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        th {
+            background: #007bff;
+            color: white;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 md:p-8 min-h-screen">
 
-    <div class="max-w-7xl mx-auto space-y-6">
+<body>
+
+<div class="container">
+
+    <button class="logout" onclick="logout()">خروج</button>
+
+    <h2>إدارة المنتجات</h2>
+
+    <input type="text" id="searchBox" placeholder="بحث عن منتج أو صنف..." onkeyup="searchProduct()">
+
+    <br><br>
+
+    <div class="grid">
+        <input id="product_name" placeholder="اسم المنتج *">
+        <input id="pay_qte" type="number" placeholder="كمية الشراء" oninput="autoCalculateStock()">
+        <input id="pice_qte" type="number" placeholder="عدد القطع" oninput="autoCalculateStock()">
+        <input id="qte_in_stock" type="number" placeholder="المخزون">
+        <input id="pay_price" type="number" step="0.01" placeholder="سعر الشراء">
+        <input id="seal_price" type="number" step="0.01" placeholder="سعر البيع *">
         
-        <!-- الشريط العلوي والإحصائيات -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-            <div>
-                <h1 class="text-2xl font-black text-gray-900">📦 إدارة المخزون والمنتجات</h1>
-                <p class="text-xs text-gray-500 mt-1">إضافة، تعديل، وحذف المنتجات المتاحة في المتجر</p>
-            </div>
-            
-            <div class="flex items-center gap-3 w-full md:w-auto">
-                <button onclick="openProductModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
-                    ➕ إضافة منتج جديد
-                </button>
-                <button onclick="fetchProducts()" class="bg-gray-900 hover:bg-gray-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
-                    🔄 تحديث
-                </button>
-            </div>
+        <div>
+            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px;">تاريخ الشراء:</label>
+            <input id="pay_date" type="date">
+        </div>
+        
+        <div>
+            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px;">تاريخ انتهاء الصلاحية:</label>
+            <input id="expare_date" type="date">
         </div>
 
-        <!-- شريط البحث والفرز -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex justify-between items-center">
-            <div class="w-full md:w-96">
-                <input type="text" id="searchInput" oninput="filterProducts()" placeholder="🔍 ابحث عن اسم المنتج أو القسم..." class="w-full border rounded-xl p-2.5 text-xs bg-gray-50 outline-none focus:ring-2 focus:ring-blue-400">
-            </div>
-            <div class="text-xs font-bold text-gray-500">
-                إجمالي المنتجات: <span id="productsCount" class="text-blue-600 font-extrabold">0</span>
-            </div>
-        </div>
-
-        <!-- جدول المنتجات -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-right border-collapse text-xs md:text-sm">
-                    <thead>
-                        <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
-                            <th class="p-4">المنتج</th>
-                            <th class="p-4">القسم</th>
-                            <th class="p-4">سعر البيع</th>
-                            <th class="p-4">سعر التكلفة</th>
-                            <th class="p-4">العمولة</th>
-                            <th class="p-4">المخزون</th>
-                            <th class="p-4 text-center">الخيارات</th>
-                        </tr>
-                    </thead>
-                    <tbody id="productsTableBody">
-                        <tr>
-                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل المنتجات...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
+        <input id="req_id" placeholder="رقم الطلب">
+        <input id="coasts_value" type="number" step="0.01" placeholder="التكاليف">
+        
+        <select id="id_cat">
+            <option value="">جاري تحميل الأصناف...</option>
+        </select>
+        
+        <input id="p_weight" placeholder="الوزن">
     </div>
 
-    <!-- النافذة المنبثقة لإضافة/تعديل منتج Modal -->
-    <div id="productModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden my-6 relative flex flex-col border border-gray-100 animate-in fade-in zoom-in duration-200">
-            
-            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
-                <h3 id="modalTitle" class="font-bold text-sm">إضافة منتج جديد</h3>
-                <button onclick="closeProductModal()" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-sm">✕</button>
-            </div>
+    <br>
 
-            <form id="productForm" onsubmit="saveProduct(event)" class="p-6 space-y-4">
-                <input type="hidden" id="productId">
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">اسم المنتج *</label>
-                    <input type="text" id="productName" required class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">سعر البيع (seal_price) *</label>
-                        <input type="number" step="0.01" id="sealPrice" required class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">سعر الشراء / التكلفة (pay_price)</label>
-                        <input type="number" step="0.01" id="payPrice" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">الكمية بالخزينة *</label>
-                        <input type="number" id="qteInStock" required class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">العمولة (commission)</label>
-                        <input type="number" step="0.01" id="commission" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">القسم (department)</label>
-                        <input type="text" id="department" placeholder="مثال: رجالي، نسائي" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">رابط الصورة (image_url)</label>
-                    <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" class="w-full border rounded-xl p-2.5 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dir-ltr">
-                </div>
-
-                <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeProductModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-5 rounded-xl text-xs transition">
-                        إلغاء
-                    </button>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition shadow-sm">
-                        حفظ البيانات
-                    </button>
-                </div>
-            </form>
-
-        </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="save" id="btnSave" onclick="saveProduct()">حفظ المنتج</button>
+        <button type="button" onclick="clearForm()" style="background: #6c757d; color: white;">إلغاء / مسح الحقول</button>
     </div>
 
-    <script>
-        const supabaseClient = supabase.createClient(
-            "https://ihlwkwiimimoiplfqcdk.supabase.co",
-            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
-        );
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>المنتج</th>
+                    <th>المخزون</th>
+                    <th>سعر البيع</th>
+                    <th>الصنف</th>
+                    <th>تعديل</th>
+                    <th>حذف</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="7">جاري تحميل البيانات...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
-        let productsList = [];
-        let filteredProductsList = [];
+</div>
 
-        // 1. جلب المنتجات من Supabase
-        async function fetchProducts() {
-            try {
-                const { data, error } = await supabaseClient
-                    .from("products")
-                    .select("*")
-                    .order("id_product", { ascending: false });
+<script>
+    let edit_id = null;
+    let products = [];
+    let categories = [];
 
-                if (error) throw error;
-
-                productsList = data || [];
-                filteredProductsList = productsList;
-                renderProducts(filteredProductsList);
-            } catch (err) {
-                console.error("خطأ في جلب البيانات:", err);
-                alert("تعذر جلب المنتجات: " + err.message);
-            }
+    // 1. حساب المخزون تلقائياً عند تغيير كمية الشراء وعدد القطع
+    function autoCalculateStock() {
+        const payQte = Number(document.getElementById("pay_qte").value) || 0;
+        const piceQte = Number(document.getElementById("pice_qte").value) || 0;
+        if (payQte > 0 && piceQte > 0) {
+            document.getElementById("qte_in_stock").value = payQte * piceQte;
         }
+    }
 
-        // 2. رسم المنتجات داخل الجدول
-        function renderProducts(items) {
-            const tbody = document.getElementById("productsTableBody");
-            document.getElementById("productsCount").textContent = items.length;
+    // 2. تحميل الأصناف من السيرفر المحلي
+    async function loadCategories() {
+        try {
+            const response = await fetch('/api/categories');
+            if (!response.ok) throw new Error("فشل في تحميل الأصناف");
+            categories = await response.json();
 
-            if (!items || items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400">لا توجد منتجات مسجلة.</td></tr>`;
-                return;
-            }
-
-            let html = "";
-            const fallbackImg = "https://placehold.co/100x100?text=No+Image";
-
-            items.forEach(p => {
-                const img = p.image_url ? p.image_url : fallbackImg;
-                
-                html += `
-                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
-                    <td class="p-4">
-                        <div class="flex items-center gap-3">
-                            <img src="${img}" alt="${p.product_name}" class="w-10 h-10 object-cover rounded-xl border border-gray-200 bg-gray-50 flex-shrink-0" onerror="this.src='${fallbackImg}'">
-                            <div>
-                                <div class="font-bold text-gray-900">${p.product_name || 'بدون اسم'}</div>
-                                <div class="text-[10px] text-gray-400">ID: #${p.id_product}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="p-4 text-xs font-semibold text-gray-600">${p.department || 'عام'}</td>
-                    <td class="p-4 font-extrabold text-blue-600">${Number(p.seal_price || 0).toFixed(2)} ج.س</td>
-                    <td class="p-4 text-gray-500 font-medium">${Number(p.pay_price || 0).toFixed(2)} ج.س</td>
-                    <td class="p-4 text-gray-500 font-medium">${Number(p.commission || 0).toFixed(2)} ج.س</td>
-                    <td class="p-4 font-bold ${p.qte_in_stock > 5 ? 'text-emerald-600' : 'text-rose-600'}">
-                        ${p.qte_in_stock || 0}
-                    </td>
-                    <td class="p-4 text-center">
-                        <div class="flex items-center justify-center gap-2">
-                            <button onclick="editProduct(${p.id_product})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                                ✏️ تعديل
-                            </button>
-                            <button onclick="deleteProduct(${p.id_product})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                                🗑️ حذف
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
+            let html = '<option value="">اختر الصنف...</option>';
+            categories.forEach(c => {
+                const catName = c.description_cat || c.name_cat || ('صنف ' + c.id_cat);
+                html += `<option value="${c.id_cat}">${catName}</option>`;
             });
 
-            tbody.innerHTML = html;
+            document.getElementById("id_cat").innerHTML = html;
+        } catch (err) {
+            console.error("خطأ في تحميل الأصناف:", err);
+            document.getElementById("id_cat").innerHTML = '<option value="">تعذر تحميل الأصناف</option>';
+        }
+    }
+
+    // 3. تحميل المنتجات من السيرفر المحلي
+    async function loadProducts() {
+        try {
+            const response = await fetch('/api/products');
+            if (!response.ok) throw new Error("فشل في جلب المنتجات");
+            products = await response.json();
+            renderTable(products);
+        } catch (err) {
+            console.error("خطأ في تحميل المنتجات:", err);
+            document.getElementById("tableBody").innerHTML = `<tr><td colspan="7" style="color:red;">خطأ أثناء تحميل المنتجات: ${err.message}</td></tr>`;
+        }
+    }
+
+    // 4. عرض جدول المنتجات
+    function renderTable(list) {
+        if (!list || list.length === 0) {
+            document.getElementById("tableBody").innerHTML = `<tr><td colspan="7">لا توجد منتجات مسجلة.</td></tr>`;
+            return;
         }
 
-        // 3. تصفية المنتجات عند البحث
-        function filterProducts() {
-            const query = document.getElementById("searchInput").value.toLowerCase().trim();
-            filteredProductsList = productsList.filter(p => 
-                (p.product_name && p.product_name.toLowerCase().includes(query)) ||
-                (p.department && p.department.toLowerCase().includes(query))
-            );
-            renderProducts(filteredProductsList);
+        let html = "";
+        list.forEach(p => {
+            const catObj = categories.find(c => c.id_cat == p.id_cat);
+            const catName = catObj ? (catObj.description_cat || catObj.name_cat) : (p.id_cat || 'غير محدد');
+
+            html += `
+            <tr>
+                <td>${p.id_product}</td>
+                <td><strong>${p.product_name || 'بدون اسم'}</strong></td>
+                <td>${p.qte_in_stock || 0}</td>
+                <td>${Number(p.seal_price || 0).toFixed(2)}</td>
+                <td>${catName}</td>
+                <td><button class="edit" onclick="editProduct(${p.id_product})">تعديل</button></td>
+                <td><button class="delete" onclick="deleteProduct(${p.id_product})">حذف</button></td>
+            </tr>`;
+        });
+        document.getElementById("tableBody").innerHTML = html;
+    }
+
+    // 5. حفظ أو تعديل المنتج عبر الخادم المحلي
+    async function saveProduct() {
+        const productName = document.getElementById("product_name").value.trim();
+        if (!productName) {
+            alert("يرجى إدخال اسم المنتج");
+            return;
         }
 
-        // 4. فتح نموذج الإضافة/التعديل
-        function openProductModal(product = null) {
-            document.getElementById("productForm").reset();
-            if (product) {
-                document.getElementById("modalTitle").textContent = "تعديل بيانات المنتج #" + product.id_product;
-                document.getElementById("productId").value = product.id_product;
-                document.getElementById("productName").value = product.product_name || "";
-                document.getElementById("sealPrice").value = product.seal_price || 0;
-                document.getElementById("payPrice").value = product.pay_price || 0;
-                document.getElementById("qteInStock").value = product.qte_in_stock || 0;
-                document.getElementById("commission").value = product.commission || 0;
-                document.getElementById("department").value = product.department || "";
-                document.getElementById("imageUrl").value = product.image_url || "";
+        let payQte = Number(document.getElementById("pay_qte").value) || 0;
+        let piceQte = Number(document.getElementById("pice_qte").value) || 0;
+        let stockInput = Number(document.getElementById("qte_in_stock").value);
+        let stockCalculated = (stockInput || stockInput === 0) ? stockInput : (payQte * piceQte);
+
+        let data = {
+            product_name: productName,
+            pay_qte: payQte,
+            pice_qte: piceQte,
+            qte_in_stock: stockCalculated,
+            pay_price: Number(document.getElementById("pay_price").value) || 0,
+            seal_price: Number(document.getElementById("seal_price").value) || 0,
+            pay_date: document.getElementById("pay_date").value || null,
+            expare_date: document.getElementById("expare_date").value || null,
+            req_id: document.getElementById("req_id").value || null,
+            coasts_value: Number(document.getElementById("coasts_value").value) || 0,
+            id_cat: Number(document.getElementById("id_cat").value) || null,
+            p_weight: document.getElementById("p_weight").value || null
+        };
+
+        try {
+            let response;
+            if (edit_id == null) {
+                // إضافة جديد
+                response = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
             } else {
-                document.getElementById("modalTitle").textContent = "إضافة منتج جديد";
-                document.getElementById("productId").value = "";
+                // تحديث
+                response = await fetch(`/api/products/${edit_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
             }
-            document.getElementById("productModal").classList.remove("hidden");
-        }
 
-        function closeProductModal() {
-            document.getElementById("productModal").classList.add("hidden");
-        }
-
-        function editProduct(id) {
-            const product = productsList.find(p => p.id_product === id);
-            if (product) openProductModal(product);
-        }
-
-        // 5. حفظ المنتج (إضافة أو تعديل)
-        async function saveProduct(e) {
-            e.preventDefault();
-            const id = document.getElementById("productId").value;
-
-            const payload = {
-                product_name: document.getElementById("productName").value,
-                seal_price: parseFloat(document.getElementById("sealPrice").value) || 0,
-                pay_price: parseFloat(document.getElementById("payPrice").value) || 0,
-                qte_in_stock: parseInt(document.getElementById("qteInStock").value) || 0,
-                commission: parseFloat(document.getElementById("commission").value) || 0,
-                department: document.getElementById("department").value,
-                image_url: document.getElementById("imageUrl").value
-            };
-
-            try {
-                let error;
-                if (id) {
-                    // تعديل
-                    const res = await supabaseClient.from("products").update(payload).eq("id_product", id);
-                    error = res.error;
-                } else {
-                    // إضافة جديد
-                    const res = await supabaseClient.from("products").insert([payload]);
-                    error = res.error;
-                }
-
-                if (error) throw error;
-
-                alert(id ? "تم تعديل المنتج بنجاح!" : "تمت إضافة المنتج بنجاح!");
-                closeProductModal();
-                fetchProducts();
-            } catch (err) {
-                console.error("خطأ أثناء الحفظ:", err);
-                alert("فشلت عملية الحفظ: " + err.message);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || "فشل حفظ البيانات");
             }
+
+            alert(edit_id ? "تم تعديل المنتج بنجاح!" : "تم حفظ المنتج بنجاح!");
+            clearForm();
+            loadProducts();
+        } catch (err) {
+            alert("خطأ: " + err.message);
         }
+    }
 
-        // 6. حذف المنتج
-        async function deleteProduct(id) {
-            if (!confirm(`هل أنت تأكد من حذف المنتج رقم #${id}؟`)) return;
+    // 6. تعبئة النموذج للتعديل
+    function editProduct(id) {
+        let p = products.find(x => x.id_product == id);
+        if (!p) return;
 
-            try {
-                const { error } = await supabaseClient.from("products").delete().eq("id_product", id);
-                if (error) throw error;
+        document.getElementById("product_name").value = p.product_name || "";
+        document.getElementById("pay_qte").value = p.pay_qte || "";
+        document.getElementById("pice_qte").value = p.pice_qte || "";
+        document.getElementById("qte_in_stock").value = p.qte_in_stock || 0;
+        document.getElementById("pay_price").value = p.pay_price || "";
+        document.getElementById("seal_price").value = p.seal_price || "";
 
-                alert("تم حذف المنتج بنجاح");
-                fetchProducts();
-            } catch (err) {
-                console.error("خطأ الحذف:", err);
-                alert("تعذر حذف المنتج: " + err.message);
+        if (p.pay_date) document.getElementById("pay_date").value = p.pay_date.split('T')[0];
+        else document.getElementById("pay_date").value = "";
+
+        if (p.expare_date) document.getElementById("expare_date").value = p.expare_date.split('T')[0];
+        else document.getElementById("expare_date").value = "";
+
+        document.getElementById("req_id").value = p.req_id || "";
+        document.getElementById("coasts_value").value = p.coasts_value || "";
+        document.getElementById("id_cat").value = p.id_cat || "";
+        document.getElementById("p_weight").value = p.p_weight || "";
+
+        edit_id = id;
+        document.getElementById("btnSave").textContent = "تحديث البيانات";
+        document.getElementById("btnSave").style.background = "#ffc107";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 7. حذف منتج
+    async function deleteProduct(id) {
+        if (!confirm(`هل انت تأكد من حذف المنتج رقم #${id}؟`)) return;
+
+        try {
+            const response = await fetch(`/api/products/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                alert("تم الحذف بنجاح");
+                loadProducts();
+            } else {
+                alert("فشل حذف المنتج من الخادم المحلي");
             }
+        } catch (err) {
+            alert("خطأ عند الحذف: " + err.message);
         }
+    }
 
-        window.onload = fetchProducts;
-    </script>
+    // 8. بحث عن منتج
+    function searchProduct() {
+        let word = document.getElementById("searchBox").value.toLowerCase().trim();
+        let filtered = products.filter(p => {
+            const catObj = categories.find(c => c.id_cat == p.id_cat);
+            const catName = catObj ? (catObj.description_cat || catObj.name_cat || '') : '';
+            
+            return (
+                (p.product_name && p.product_name.toLowerCase().includes(word)) ||
+                catName.toLowerCase().includes(word) ||
+                (p.id_product && p.id_product.toString().includes(word))
+            );
+        });
+        renderTable(filtered);
+    }
+
+    // 9. مسح الحقول
+    function clearForm() {
+        document.querySelectorAll(".grid input").forEach(i => i.value = "");
+        document.getElementById("id_cat").value = "";
+        edit_id = null;
+        document.getElementById("btnSave").textContent = "حفظ المنتج";
+        document.getElementById("btnSave").style.background = "#28a745";
+    }
+
+    // 10. تسجيل خروج
+    function logout() {
+        window.location.href = "index.html";
+    }
+
+    // البدء بالتحميل
+    async function init() {
+        await loadCategories();
+        await loadProducts();
+    }
+
+    init();
+</script>
+
 </body>
 </html>
