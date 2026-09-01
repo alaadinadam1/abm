@@ -120,7 +120,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات الطلبات
+        // 1. جلب الطلبات وجلب قيمة commission من جدول products بدقة
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -139,7 +139,10 @@
                             qte,
                             price,
                             amount,
-                            commission
+                            products (
+                                id_product,
+                                commission
+                            )
                         )
                     `)
                     .order('date_created', { ascending: false });
@@ -158,7 +161,7 @@
             }
         }
 
-        // 2. عرض البيانات
+        // 2. عرض القائمة والجدول
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -226,25 +229,31 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. حذف الطلب
-        async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
+        // 3. دالة حاسبة للعمولة تحلل الهيكل المرجع بدقة من Supabase
+        function getRealCommission(order) {
+            let totalCommission = 0;
+            if (!order || !order.web_order_details) return 0;
 
-            try {
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
+            order.web_order_details.forEach(item => {
+                const quantity = Number(item.qte || 1);
+                let unitCommission = 0;
 
-                if (error) throw error;
-                alert('تم حذف الطلب بنجاح');
-                fetchOrders();
+                if (item.products) {
+                    // في حال إرجاع الكائن كعنصر واحد أو كمصفوفة
+                    if (Array.isArray(item.products) && item.products.length > 0) {
+                        unitCommission = Number(item.products[0].commission || 0);
+                    } else if (typeof item.products === 'object') {
+                        unitCommission = Number(item.products.commission || 0);
+                    }
+                }
 
-            } catch (err) {
-                console.error("خطأ الحذف:", err);
-                alert("تعذر حذف الطلب: " + err.message);
-            }
+                totalCommission += (unitCommission * quantity);
+            });
+
+            return totalCommission;
         }
 
-        // 4. عرض الفاتورة
+        // 4. عرض الفاتورة بالعمولة الحقيقية
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -254,12 +263,11 @@
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
 
             let itemsRows = '';
-            let totalCommission = 0;
+            const realCommission = getRealCommission(order);
 
             if (order.web_order_details && order.web_order_details.length > 0) {
                 order.web_order_details.forEach(item => {
                     const itemTotal = item.amount || ((item.qte || 0) * (item.price || 0));
-                    totalCommission += Number(item.commission || 0) * Number(item.qte || 1);
 
                     itemsRows += `
                         <tr class="border-b border-gray-100 text-xs text-gray-700">
@@ -329,9 +337,9 @@
                             <span class="text-[10px] bg-white/20 px-2.5 py-1 rounded-md font-semibold">مدفوع</span>
                         </div>
 
-                        <div class="flex justify-between items-center px-2 text-xs text-gray-500 font-medium">
-                            <span>العمولة المستحقة:</span>
-                            <span class="font-bold text-gray-800">${Number(totalCommission).toFixed(2)} ج.س</span>
+                        <div class="flex justify-between items-center px-2 text-xs font-semibold text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                            <span>إجمالي العمولة المستحقة:</span>
+                            <span class="font-black text-emerald-600 text-sm">${realCommission.toFixed(2)} ج.س</span>
                         </div>
                     </div>
                 </div>
@@ -345,7 +353,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. بناء النص المنسق للفاتورة
+        // 5. النص المشارك
         function buildShareText(order, commission) {
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
@@ -362,38 +370,47 @@
 
             text += `------------------------------\n`;
             text += `💰 *الإجمالي النهائي:* ${Number(order.total_amount || 0).toFixed(2)} ج.س\n`;
-            text += `💵 *العمولة:* ${Number(commission).toFixed(2)} ج.س\n`;
+            text += `💵 *العمولة المستحقة:* ${Number(commission).toFixed(2)} ج.س\n`;
             return text;
         }
 
-        // 6. فتح تطبيق الواتساب مباشرةً واختيار الرقم من داخل التطبيق
+        // 6. فتح الواتساب
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
-
-            let totalCommission = 0;
-            if (currentActiveOrder.web_order_details) {
-                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
-            }
-
-            const messageText = buildShareText(currentActiveOrder, totalCommission);
+            const realCommission = getRealCommission(currentActiveOrder);
+            const messageText = buildShareText(currentActiveOrder, realCommission);
             const encodedText = encodeURIComponent(messageText);
             
-            // فتح الواتساب مباشرة مع نص المراسلة جاهزاً
-            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+            window.location.href = `whatsapp://send?text=${encodedText}`;
         }
 
         // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let totalCommission = 0;
-            if (currentActiveOrder.web_order_details) {
-                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
-            }
-            const text = buildShareText(currentActiveOrder, totalCommission);
+            const realCommission = getRealCommission(currentActiveOrder);
+            const text = buildShareText(currentActiveOrder, realCommission);
             
             navigator.clipboard.writeText(text).then(() => {
                 alert("تم نسخ النص بنجاح!");
             }).catch(() => alert("تعذر النسخ"));
+        }
+
+        // 8. حذف طلب
+        async function deleteOrder(orderId) {
+            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
+
+            try {
+                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
+                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
+
+                if (error) throw error;
+                alert('تم حذف الطلب بنجاح');
+                fetchOrders();
+
+            } catch (err) {
+                console.error("خطأ الحذف:", err);
+                alert("تعذر حذف الطلب: " + err.message);
+            }
         }
 
         window.onload = fetchOrders;
