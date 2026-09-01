@@ -119,35 +119,52 @@
         );
 
         let globalOrders = [];
-        let globalUsersMap = {};
+        let globalUsers = [];
         let currentActiveOrder = null;
 
-        // 1. جلب المستخدمين فقط من جدول tb_users
+        // 1. جلب بيانات جدول المستخدمين tb_users بشكل مستقل وبسيط
         async function fetchUsers() {
             try {
-                const { data: users, error } = await supabaseClient
+                const { data, error } = await supabaseClient
                     .from('tb_users')
-                    .select('id, username, fullname, bank_account');
+                    .select('*');
 
-                if (error) throw error;
-
-                globalUsersMap = {};
-                (users || []).forEach(u => {
-                    if (u.id !== undefined && u.id !== null) {
-                        globalUsersMap[String(u.id)] = u;
-                    }
-                    if (u.username) {
-                        globalUsersMap[String(u.username).trim().toLowerCase()] = u;
-                    }
-                });
+                if (error) {
+                    console.error("خطأ عند جلب المستخدمين:", error);
+                    return;
+                }
+                globalUsers = data || [];
             } catch (err) {
-                console.error("خطأ عند جلب بيانات المستخدمين:", err);
+                console.error("استثناء عند جلب المستخدمين:", err);
             }
         }
 
-        // 2. جلب الطلبات وقائمات المنتجات
+        // 2. دالة مطابقة بيانات المستخدم بحسب id_marketer الموجود في الطلب
+        function getUserInfo(marketerId) {
+            if (!marketerId) return { name: 'غير محدد', account: 'غير محدد' };
+
+            const searchVal = String(marketerId).trim().toLowerCase();
+
+            // إيجاد المستخدم بالمطابقة مع id أو username
+            const user = globalUsers.find(u => 
+                String(u.id).trim().toLowerCase() === searchVal || 
+                (u.username && String(u.username).trim().toLowerCase() === searchVal)
+            );
+
+            if (user) {
+                return {
+                    name: user.fullname || user.username || 'بدون اسم',
+                    account: user.bank_account || user.bank_accounttext || 'غير مسجل'
+                };
+            }
+
+            return { name: `مستخدم (${marketerId})`, account: 'غير مسجل' };
+        }
+
+        // 3. جلب الطلبات وقائمات المنتجات
         async function fetchOrders() {
             try {
+                // جلب قائمة المستخدمين أولاً
                 await fetchUsers();
 
                 const { data: orders, error } = await supabaseClient
@@ -189,26 +206,7 @@
             }
         }
 
-        // استخراج بيانات المستخدم المطابق من tb_users
-        function getUserData(order) {
-            if (!order || order.id_marketer === undefined || order.id_marketer === null) {
-                return { name: 'غير محدد', account: 'غير محدد' };
-            }
-
-            const searchKey = String(order.id_marketer).trim().toLowerCase();
-            const matchedUser = globalUsersMap[searchKey];
-
-            if (matchedUser) {
-                return {
-                    name: matchedUser.fullname || matchedUser.username || 'بدون اسم',
-                    account: matchedUser.bank_account || 'غير مسجل'
-                };
-            }
-
-            return { name: `مستخدم (${order.id_marketer})`, account: 'غير محدد' };
-        }
-
-        // 3. عرض البيانات
+        // 4. عرض البيانات في الجدول والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -226,7 +224,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const user = getUserData(order);
+                const user = getUserInfo(order.id_marketer);
 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -279,7 +277,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 4. حساب العمولة الإجمالية
+        // 5. حساب العمولة الإجمالية للطلب
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -302,7 +300,7 @@
             return totalCommission;
         }
 
-        // 5. عرض الفاتورة التفصيلية
+        // 6. عرض الفاتورة التفصيلية
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -310,7 +308,7 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-            const user = getUserData(order);
+            const user = getUserInfo(order.id_marketer);
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -359,9 +357,9 @@
                             <div><b class="text-slate-700">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
 
-                        <!-- بيانات المستخدم والحساب البنكي من tb_users -->
+                        <!-- بيانات المستخدم من tb_users -->
                         <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
-                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المستخدم</span>
+                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المستخدم (tb_users)</span>
                             <div><b class="text-purple-900">👤 الاسم:</b> <span class="font-bold text-purple-800">${user.name}</span></div>
                             <div><b class="text-purple-900">🏦 الحساب البنكي:</b> <span class="font-mono text-purple-900 font-bold dir-ltr inline-block">${user.account}</span></div>
                         </div>
@@ -408,9 +406,9 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 6. تجهيز نص الواتساب والنسخ
+        // 7. مشاركة ونسخ النص
         function buildShareText(order, commission) {
-            const user = getUserData(order);
+            const user = getUserInfo(order.id_marketer);
 
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
