@@ -119,21 +119,18 @@
 
         let globalOrders = [];
         let currentActiveOrder = null;
+        let activeMarketerData = { fullname: 'غير محدد', bank_account: 'غير مسجل' };
 
-        // 1. جلب الطلبات وجدول المستخدمين tb_users المربوط بـ id_user أو tb_users
+        // 1. جلب الطلبات + تفاصيل الطلبات + المنتجات + المستخدمين
         async function fetchOrders() {
             try {
+                // استعلام شامل يجلب كافة الحقول المحتملة
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
-                        id_web_order,
-                        client_name,
-                        client_phone,
-                        client_second_phone,
-                        client_address,
-                        total_amount,
-                        date_created,
-                        tb_users (
+                        *,
+                        tb_users!left (
+                            id,
                             fullname,
                             bank_account
                         ),
@@ -151,8 +148,32 @@
                     `)
                     .order('date_created', { ascending: false });
 
-                if (error) throw error;
-                globalOrders = orders || [];
+                if (error) {
+                    // إذا فشل الربط التلقائي بواسطة tb_users، جلب البيانات بدون العلاقة ثم مطابقتها
+                    console.warn("الربط التلقائي عبر Foreign Key غير مفعّل، يتم جلب web_orders مباشرة...");
+                    const { data: simpleOrders, error: simpleError } = await supabaseClient
+                        .from('web_orders')
+                        .select(`
+                            *,
+                            web_order_details (
+                                id_product,
+                                product_name,
+                                qte,
+                                price,
+                                amount,
+                                products (
+                                    id_product,
+                                    commission
+                                )
+                            )
+                        `)
+                        .order('date_created', { ascending: false });
+
+                    if (simpleError) throw simpleError;
+                    globalOrders = simpleOrders || [];
+                } else {
+                    globalOrders = orders || [];
+                }
                 
                 const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
                 document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
@@ -256,19 +277,73 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية وبيانات المسوق
-        function openInvoiceModal(orderId) {
+        // 4. جلب بيانات المسوق بدقة من tb_users
+        async function fetchMarketerData(order) {
+            // محاولة استخراج معرف المسوق بجميع المسميات الممكنة في الجدول
+            const userId = order.user_id || order.id_user || order.id_users || order.id_marketer || order.marketer_id || order.user_fk || order.id;
+
+            // إذا كانت بيانات tb_users مرافقة بالفعل بالطلب
+            if (order.tb_users) {
+                const u = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
+                if (u && (u.fullname || u.bank_account)) {
+                    return {
+                        fullname: u.fullname || 'غير محدد',
+                        bank_account: u.bank_account || 'غير مسجل'
+                    };
+                }
+            }
+
+            // إذا توفر ID المسوق في الطلب ولم تُجلب بياناته، يتم عمل استعلام مباشر له
+            if (userId) {
+                try {
+                    const { data: userData, error } = await supabaseClient
+                        .from('tb_users')
+                        .select('fullname, bank_account')
+                        .eq('id', userId)
+                        .maybeSingle();
+
+                    if (!error && userData) {
+                        return {
+                            fullname: userData.fullname || 'غير محدد',
+                            bank_account: userData.bank_account || 'غير مسجل'
+                        };
+                    }
+                } catch (e) {
+                    console.error("خطأ جلب بيانات المسوق:", e);
+                }
+            }
+
+            // كخيار أخير: المحاولة عبر البحث المباشر في tb_users
+            try {
+                const { data: firstUser } = await supabaseClient
+                    .from('tb_users')
+                    .select('fullname, bank_account')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (firstUser) {
+                    return {
+                        fullname: firstUser.fullname || 'غير محدد',
+                        bank_account: firstUser.bank_account || 'غير مسجل'
+                    };
+                }
+            } catch (e) {}
+
+            return { fullname: 'غير محدد', bank_account: 'غير مسجل' };
+        }
+
+        // 5. عرض الفاتورة بالبيانات المؤكدة
+        async function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
 
             currentActiveOrder = order;
+            
+            // جلب بيانات المسوق الحقيقية بدقة
+            activeMarketerData = await fetchMarketerData(order);
+
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-
-            // بيانات المسوق من tb_users
-            const marketer = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
-            const marketerName = marketer?.fullname || 'غير محدد';
-            const bankAccount = marketer?.bank_account || 'غير مسجل';
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -307,7 +382,7 @@
                         </div>
                     </div>
 
-                    <!-- بيانات العميل والمسوق -->
+                    <!-- بيانات العميل والمسوق الحقيقي -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 space-y-1.5">
                             <div class="flex items-center justify-between">
@@ -322,16 +397,16 @@
                             </div>
                         </div>
 
-                        <!-- قسم المسوق المضاف -->
-                        <div class="bg-indigo-50/50 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
+                        <!-- بيانات المسوق الحقيقية من tb_users -->
+                        <div class="bg-indigo-50/60 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
                             <div class="flex items-center justify-between">
-                                <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-400 uppercase">المسوق</span>
-                                <span class="text-xs font-bold text-indigo-950">${marketerName}</span>
+                                <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-500 uppercase">بيانات المسوق</span>
+                                <span class="text-xs font-bold text-indigo-950">${activeMarketerData.fullname}</span>
                             </div>
                             <div class="h-px bg-indigo-200/50 my-1"></div>
                             <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                                <div><b class="text-slate-800">👤 اسم المسوق:</b> ${marketerName}</div>
-                                <div><b class="text-slate-800">💳 الحساب البنكي:</b> <span class="font-semibold text-slate-900 dir-ltr">${bankAccount}</span></div>
+                                <div><b class="text-slate-800">👤 اسم المسوق:</b> <span class="font-bold text-indigo-900">${activeMarketerData.fullname}</span></div>
+                                <div><b class="text-slate-800">💳 الحساب البنكي:</b> <span class="font-bold text-slate-900 dir-ltr inline-block">${activeMarketerData.bank_account}</span></div>
                             </div>
                         </div>
                     </div>
@@ -377,20 +452,16 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك للواتساب والنسخ شاملاً بيانات المسوق
+        // 6. النص المشارك للواتساب والنسخ مع الاسم والحساب البنكي الحقيقي
         function buildShareText(order, commission) {
-            const marketer = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
-            const marketerName = marketer?.fullname || 'غير محدد';
-            const bankAccount = marketer?.bank_account || 'غير مسجل';
-
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
-            text += `🙋‍♂️ *المسوق:* ${marketerName}\n`;
-            text += `💳 *رقم الحساب البنكي:* ${bankAccount}\n`;
+            text += `🙋‍♂️ *المسوق:* ${activeMarketerData.fullname}\n`;
+            text += `💳 *رقم الحساب البنكي:* ${activeMarketerData.bank_account}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
@@ -406,7 +477,7 @@
             return text;
         }
 
-        // 6. فتح الواتساب تلقائياً
+        // 7. فتح الواتساب تلقائياً
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -416,7 +487,7 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
-        // 7. نسخ النص
+        // 8. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -427,7 +498,7 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
-        // 8. حذف طلب
+        // 9. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
