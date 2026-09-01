@@ -120,10 +120,9 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات الطلبات مع تفاصيل المنتجات والعمولة
+        // 1. جلب بيانات الطلبات
         async function fetchOrders() {
             try {
-                // نطلب عمود العمولة من تفاصيل الطلب، وأيضاً من جدول products كخيار احتياطي
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
@@ -140,10 +139,7 @@
                             qte,
                             price,
                             amount,
-                            commission,
-                            products (
-                                commission
-                            )
+                            commission
                         )
                     `)
                     .order('date_created', { ascending: false });
@@ -248,26 +244,6 @@
             }
         }
 
-        // دالة موحدة لحساب العمولة تدعم كل الاحتمالات
-        function calculateTotalCommission(order) {
-            let totalCommission = 0;
-            if (order && order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach(item => {
-                    // فحص العمولة من جدول المنتجات أولاً، وإذا لم توجد نأخذها من تفاصيل الطلب
-                    let itemComm = 0;
-                    if (item.products && item.products.commission !== undefined && item.products.commission !== null) {
-                        itemComm = item.products.commission;
-                    } else if (item.commission !== undefined && item.commission !== null) {
-                        itemComm = item.commission;
-                    }
-                    
-                    const qte = Number(item.qte || 1);
-                    totalCommission += (Number(itemComm) * qte);
-                });
-            }
-            return totalCommission;
-        }
-
         // 4. عرض الفاتورة
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
@@ -278,11 +254,12 @@
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
 
             let itemsRows = '';
-            const totalCommission = calculateTotalCommission(order);
+            let totalCommission = 0;
 
             if (order.web_order_details && order.web_order_details.length > 0) {
                 order.web_order_details.forEach(item => {
                     const itemTotal = item.amount || ((item.qte || 0) * (item.price || 0));
+                    totalCommission += Number(item.commission || 0) * Number(item.qte || 1);
 
                     itemsRows += `
                         <tr class="border-b border-gray-100 text-xs text-gray-700">
@@ -389,22 +366,29 @@
             return text;
         }
 
-        // 6. فتح تطبيق الواتساب مباشرة عبر البروتوكول المباشر whatsapp://
+        // 6. فتح تطبيق الواتساب مباشرةً واختيار الرقم من داخل التطبيق
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
-            const totalCommission = calculateTotalCommission(currentActiveOrder);
+
+            let totalCommission = 0;
+            if (currentActiveOrder.web_order_details) {
+                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
+            }
 
             const messageText = buildShareText(currentActiveOrder, totalCommission);
             const encodedText = encodeURIComponent(messageText);
             
-            // فتح تطبيق الواتساب المكتبي أو الجوال مباشرة مع تجهيز نص الرسالة واختيار المتلقي من التطبيق
-            window.location.href = `whatsapp://send?text=${encodedText}`;
+            // فتح الواتساب مباشرة مع نص المراسلة جاهزاً
+            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
         // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            const totalCommission = calculateTotalCommission(currentActiveOrder);
+            let totalCommission = 0;
+            if (currentActiveOrder.web_order_details) {
+                currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
+            }
             const text = buildShareText(currentActiveOrder, totalCommission);
             
             navigator.clipboard.writeText(text).then(() => {
