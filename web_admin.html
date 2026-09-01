@@ -373,14 +373,15 @@
             return text;
         }
 
-        // 6. فتح الواتساب
+        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
             const messageText = buildShareText(currentActiveOrder, realCommission);
             const encodedText = encodeURIComponent(messageText);
             
-            window.location.href = `whatsapp://send?text=${encodedText}`;
+            // فتح واتساب مباشرة مع نص الرسالة فقط لتحديد جهة الاتصال يدوياً
+            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
         // 7. نسخ النص
