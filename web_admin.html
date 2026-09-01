@@ -121,16 +121,15 @@
         let currentActiveOrder = null;
         let activeMarketerData = { fullname: 'غير محدد', bank_account: 'غير مسجل' };
 
-        // 1. جلب الطلبات + تفاصيل الطلبات + المنتجات + المستخدمين
+        // 1. جلب الطلبات
         async function fetchOrders() {
             try {
-                // استعلام شامل يجلب كافة الحقول المحتملة
+                // جلب web_orders مع الربط بـ tb_users المعتمد على العمود id
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
                         *,
-                        tb_users!left (
-                            id,
+                        tb_users (
                             fullname,
                             bank_account
                         ),
@@ -149,8 +148,7 @@
                     .order('date_created', { ascending: false });
 
                 if (error) {
-                    // إذا فشل الربط التلقائي بواسطة tb_users، جلب البيانات بدون العلاقة ثم مطابقتها
-                    console.warn("الربط التلقائي عبر Foreign Key غير مفعّل، يتم جلب web_orders مباشرة...");
+                    // في حال تطلب الاستعلام الخالي من الربط التلقائي
                     const { data: simpleOrders, error: simpleError } = await supabaseClient
                         .from('web_orders')
                         .select(`
@@ -254,7 +252,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
+        // 3. حساب العمولة
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -277,12 +275,9 @@
             return totalCommission;
         }
 
-        // 4. جلب بيانات المسوق بدقة من tb_users
+        // 4. استخراج وجلب بيانات المسوق بواسطة المعرف id
         async function fetchMarketerData(order) {
-            // محاولة استخراج معرف المسوق بجميع المسميات الممكنة في الجدول
-            const userId = order.user_id || order.id_user || order.id_users || order.id_marketer || order.marketer_id || order.user_fk || order.id;
-
-            // إذا كانت بيانات tb_users مرافقة بالفعل بالطلب
+            // التحقق أولاً إذا كان الربط التلقائي عبر JOIN قد جلب بيانات tb_users
             if (order.tb_users) {
                 const u = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
                 if (u && (u.fullname || u.bank_account)) {
@@ -293,7 +288,9 @@
                 }
             }
 
-            // إذا توفر ID المسوق في الطلب ولم تُجلب بياناته، يتم عمل استعلام مباشر له
+            // الاعتماد المباشر على قيمة id الموجودة في سجل الطلب web_orders
+            const userId = order.id;
+
             if (userId) {
                 try {
                     const { data: userData, error } = await supabaseClient
@@ -309,37 +306,21 @@
                         };
                     }
                 } catch (e) {
-                    console.error("خطأ جلب بيانات المسوق:", e);
+                    console.error("خطأ الاستعلام المباشر من tb_users:", e);
                 }
             }
-
-            // كخيار أخير: المحاولة عبر البحث المباشر في tb_users
-            try {
-                const { data: firstUser } = await supabaseClient
-                    .from('tb_users')
-                    .select('fullname, bank_account')
-                    .limit(1)
-                    .maybeSingle();
-
-                if (firstUser) {
-                    return {
-                        fullname: firstUser.fullname || 'غير محدد',
-                        bank_account: firstUser.bank_account || 'غير مسجل'
-                    };
-                }
-            } catch (e) {}
 
             return { fullname: 'غير محدد', bank_account: 'غير مسجل' };
         }
 
-        // 5. عرض الفاتورة بالبيانات المؤكدة
+        // 5. فتح المعاينة وتطبيق البيانات
         async function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
 
             currentActiveOrder = order;
             
-            // جلب بيانات المسوق الحقيقية بدقة
+            // جلب البيانات الدقيقة للمسوق باستخدام المعرف id
             activeMarketerData = await fetchMarketerData(order);
 
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
@@ -397,7 +378,7 @@
                             </div>
                         </div>
 
-                        <!-- بيانات المسوق الحقيقية من tb_users -->
+                        <!-- بيانات المسوق الحقيقية المجلوبة بواسطة المعرف id -->
                         <div class="bg-indigo-50/60 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-500 uppercase">بيانات المسوق</span>
@@ -452,7 +433,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 6. النص المشارك للواتساب والنسخ مع الاسم والحساب البنكي الحقيقي
+        // 6. تجهيز النص للواتساب والنسخ
         function buildShareText(order, commission) {
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
@@ -477,7 +458,7 @@
             return text;
         }
 
-        // 7. فتح الواتساب تلقائياً
+        // 7. إرسال إلى الواتساب
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -498,7 +479,7 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
-        // 9. حذف طلب
+        // 9. حذف الطلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
