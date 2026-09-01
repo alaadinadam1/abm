@@ -3,167 +3,231 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سلة المشتريات والدفع</title>
-    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <title>سلة التسوق والدفع</title>
+    <!-- Bootstrap 5 RTL -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Cairo', sans-serif; }</style>
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .cart-card, .checkout-card { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); padding: 20px; }
+        .btn-qty { border-radius: 50%; width: 32px; height: 32px; padding: 0; line-height: 30px; }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-800 p-4 md:p-8">
+<body class="py-4">
 
-    <div class="max-w-4xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold">🛒 سلة المشتريات وإنهاء الطلب</h1>
-            <a href="store.html" class="text-blue-600 font-bold hover:underline text-sm">⬅️ العودة للمتجر</a>
-        </div>
+<div class="container">
+    <h2 class="mb-4 text-center text-primary"><i class="fas fa-shopping-cart me-2"></i> سلة التسوق واستكمال الطلب</h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- قائمة المنتجات بالسلة -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-lg font-bold mb-4 border-b pb-2">المنتجات المطلوبة</h2>
-                <div id="cartItems" class="space-y-4 max-h-80 overflow-y-auto mb-4"></div>
-                <div class="border-t pt-3 flex justify-between font-extrabold text-lg">
-                    <span>الإجمالي:</span>
-                    <span id="cartTotal" class="text-blue-600">0.00 ج.س</span>
+    <div class="row g-4">
+        <!-- عرض المنتجات بالسلة -->
+        <div class="col-lg-7">
+            <div class="cart-card">
+                <h4 class="mb-3 text-secondary">المنتجات المختارة</h4>
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>المنتج</th>
+                                <th>السعر</th>
+                                <th>الكمية</th>
+                                <th>الإجمالي</th>
+                                <th>حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-table-body">
+                            <!-- يتم ملؤها ديناميكياً بواسطة JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="empty-cart-msg" class="text-center py-4 text-muted d-none">
+                    <i class="fas fa-shopping-basket fa-3x mb-3"></i>
+                    <p>سلة التسوق فارغة حالياً.</p>
+                    <a href="store.html" class="btn btn-outline-primary btn-sm">الرجوع للمتجر</a>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                    <h5 class="m-0">المجموع الكلي:</h5>
+                    <h4 class="m-0 text-success" id="cart-total">0 د.ل</h4>
                 </div>
             </div>
+        </div>
 
-            <!-- نموذج بيانات الشحن -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-lg font-bold mb-4 border-b pb-2">📦 بيانات الشحن والتوصيل</h2>
-                <form id="checkoutForm" onsubmit="submitOrder(event)" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold mb-1">اسم العميل *</label>
-                        <input type="text" id="client_name" required class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold mb-1">رقم الهاتف الأساسي *</label>
-                        <input type="tel" id="client_phone" required placeholder="09xxxxxxx" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold mb-1">رقم هاتف إضافي (احتياطي)</label>
-                        <input type="tel" id="client_second_phone" placeholder="01xxxxxxx" class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold mb-1">العنوان بالتفصيل *</label>
-                        <input type="text" id="client_address" required placeholder="المدينة، الحي، الشارع..." class="w-full border rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+        <!-- نموذج معلومات الزبون -->
+        <div class="col-lg-5">
+            <div class="checkout-card">
+                <h4 class="mb-3 text-secondary">معلومات التسليم</h4>
+                <form id="order-form">
+                    <div class="mb-3">
+                        <label for="client_name" class="form-label">الاسم بالكامل *</label>
+                        <input type="text" class="form-control" id="client_name" required placeholder="أدخل اسمك الكريـم">
                     </div>
 
-                    <button type="submit" id="btnSubmit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer mt-4">
-                        ✅ تأكيد وإرسال الطلب
+                    <div class="mb-3">
+                        <label for="client_phone" class="form-label">رقم الهاتف الرئيسي *</label>
+                        <input type="tel" class="form-control" id="client_phone" required placeholder="09X XXXXXXX">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="client_second_phone" class="form-label">رقم هاتف إضافي (اختياري)</label>
+                        <input type="tel" class="form-control" id="client_second_phone" placeholder="09X XXXXXXX">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="client_address" class="form-label">العنوان التفصيلي *</label>
+                        <textarea class="form-control" id="client_address" rows="3" required placeholder="المدينة، المنطقة، أقرب نقطة دالة"></textarea>
+                    </div>
+
+                    <button type="submit" id="btnSubmit" class="btn btn-success w-100 py-2 fs-5">
+                        <i class="fas fa-check-circle me-1"></i> تأكيد وإرسال الطلب
                     </button>
                 </form>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        const supabaseClient = supabase.createClient(
-            "https://ihlwkwiimimoiplfqcdk.supabase.co",
-            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
-        );
+<script>
+    // 1. إعداد الاتصال بـ Supabase
+    const SUPABASE_URL = 'https://YOUR_SUPABASE_URL.supabase.co'; // غير القيمة بـ URL الخاص بك
+    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';                // غير القيمة بـ API Key الخاص بك
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
+    // 2. قراءة السلة من LocalStorage
+    let cart = JSON.parse(localStorage.getItem('customerCart')) || [];
 
-        function renderCart() {
-            const container = document.getElementById('cartItems');
-            if (cart.length === 0) {
-                container.innerHTML = `<p class="text-gray-400 text-center py-4">السلة فارغة</p>`;
-                document.getElementById('cartTotal').innerText = '0.00 ج.س';
-                return;
-            }
-
-            let html = '';
-            let total = 0;
-
-            cart.forEach((item, index) => {
-                const itemTotal = (item.seal_price || 0) * (item.quantity || 1);
-                total += itemTotal;
-                html += `
-                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
-                    <div>
-                        <div class="font-bold text-sm">${item.product_name}</div>
-                        <div class="text-xs text-gray-500">${item.seal_price} × ${item.quantity}</div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-sm text-blue-600">${itemTotal.toFixed(2)}</span>
-                        <button onclick="removeItem(${index})" class="text-red-500 hover:text-red-700 font-bold text-xs">❌</button>
-                    </div>
-                </div>`;
-            });
-
-            container.innerHTML = html;
-            document.getElementById('cartTotal').innerText = total.toFixed(2) + ' ج.س';
-        }
-
-        function removeItem(index) {
-            cart.splice(index, 1);
-            localStorage.setItem('customerCart', JSON.stringify(cart));
-            renderCart();
-        }
-
-        async function submitOrder(e) {
-            e.preventDefault();
-            if (cart.length === 0) {
-                alert("السلة فارغة!");
-                return;
-            }
-
-            const btn = document.getElementById('btnSubmit');
-            btn.disabled = true;
-            btn.innerText = "جاري حفظ الطلب...";
-
-            const total = cart.reduce((sum, item) => sum + ((item.seal_price || 0) * (item.quantity || 1)), 0);
-
-            try {
-                // 1. إضافة سجل الطلب الرئيسي في web_orders
-                const { data: orderData, error: orderError } = await supabaseClient
-                    .from('web_orders')
-                    .insert([{
-                        client_name: document.getElementById('client_name').value,
-                        client_phone: document.getElementById('client_phone').value,
-                        client_second_phone: document.getElementById('client_second_phone').value || null,
-                        client_address: document.getElementById('client_address').value,
-                        total_amount: total,
-                        order_status: 'قيد المراجعة'
-                    }])
-                    .select('id_web_order')
-                    .single();
-
-                if (orderError) throw orderError;
-
-                const newOrderId = orderData.id_web_order;
-
-                // 2. تجهيز وسجل تفاصيل المنتجات لجدول web_order_details
-                const orderDetails = cart.map(item => ({
-                    id_web_order: newOrderId,
-                    id_product: item.id_product,
-                    product_name: item.product_name,
-                    qte: item.quantity,
-                    price: item.seal_price,
-                    amount: item.seal_price * item.quantity,
-                    commission: 0 // يمكن حساب العمولة لاحقاً
-                }));
-
-                const { error: detailsError } = await supabaseClient
-                    .from('web_order_details')
-                    .insert(orderDetails);
-
-                if (detailsError) throw detailsError;
-
-                alert("🎉 تم إرسال طلبك بنجاح! رقم الطلب: " + newOrderId);
-                localStorage.removeItem('customerCart');
-                window.location.href = 'store.html';
-
-            } catch (err) {
-                console.error("خطأ أثناء حفظ الطلب:", err);
-                alert("حدث خطأ أثناء حفظ الطلب: " + err.message);
-                btn.disabled = false;
-                btn.innerText = "✅ تأكيد وإرسال الطلب";
-            }
-        }
-
+    document.addEventListener('DOMContentLoaded', () => {
         renderCart();
-    </script>
+        document.getElementById('order-form').addEventListener('submit', submitOrder);
+    });
+
+    // 3. عرض جدول المنتجات وحساب المجموع
+    function renderCart() {
+        const tbody = document.getElementById('cart-table-body');
+        const emptyMsg = document.getElementById('empty-cart-msg');
+        const totalEl = document.getElementById('cart-total');
+
+        tbody.innerHTML = '';
+
+        if (cart.length === 0) {
+            emptyMsg.classList.remove('d-none');
+            totalEl.innerText = '0 د.ل';
+            return;
+        }
+
+        emptyMsg.classList.add('d-none');
+        let total = 0;
+
+        cart.forEach((item, index) => {
+            const itemTotal = (item.seal_price || 0) * (item.quantity || 1);
+            total += itemTotal;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${item.product_name}</strong></td>
+                <td>${item.seal_price} د.ل</td>
+                <td>
+                    <div class="d-flex align-items-center gap-1">
+                        <button class="btn btn-sm btn-outline-secondary btn-qty" onclick="updateQty(${index}, -1)">-</button>
+                        <span class="fw-bold px-2">${item.quantity}</span>
+                        <button class="btn btn-sm btn-outline-secondary btn-qty" onclick="updateQty(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td class="fw-bold">${itemTotal} د.ل</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        totalEl.innerText = total + ' د.ل';
+    }
+
+    // 4. تعديل كمية المنتجات
+    function updateQty(index, change) {
+        cart[index].quantity += change;
+        if (cart[index].quantity <= 0) {
+            cart.splice(index, 1);
+        }
+        localStorage.setItem('customerCart', JSON.stringify(cart));
+        renderCart();
+    }
+
+    // 5. حذف منتج
+    function removeItem(index) {
+        cart.splice(index, 1);
+        localStorage.setItem('customerCart', JSON.stringify(cart));
+        renderCart();
+    }
+
+    // 6. حفظ الطلب في Supabase عند الضغط على زر الإرسال
+    async function submitOrder(e) {
+        e.preventDefault();
+
+        if (cart.length === 0) {
+            alert("السلة فارغة!");
+            return;
+        }
+
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.innerText = "جاري إرسال الطلب...";
+
+        const total = cart.reduce((sum, item) => sum + ((item.seal_price || 0) * (item.quantity || 1)), 0);
+
+        try {
+            // أ. إنشاء سجل الطلب الرئيسي
+            const { data: orderData, error: orderError } = await supabaseClient
+                .from('web_orders')
+                .insert([{
+                    client_name: document.getElementById('client_name').value,
+                    client_phone: document.getElementById('client_phone').value,
+                    client_second_phone: document.getElementById('client_second_phone').value || null,
+                    client_address: document.getElementById('client_address').value,
+                    total_amount: total,
+                    order_status: 'قيد المراجعة'
+                }])
+                .select('id_web_order')
+                .single();
+
+            if (orderError) throw orderError;
+
+            const newOrderId = orderData.id_web_order;
+
+            // ب. إنشاء تفاصيل المنتجات وحفظ العمولة الفعلية لكل منتج
+            const orderDetails = cart.map(item => ({
+                id_web_order: newOrderId,
+                id_product: item.id_product,
+                product_name: item.product_name,
+                qte: item.quantity,
+                price: item.seal_price,
+                amount: (item.seal_price || 0) * (item.quantity || 1),
+                commission: item.commission || item.product_commission || 0 // حفظ العمولة تلقائياً
+            }));
+
+            const { error: detailsError } = await supabaseClient
+                .from('web_order_details')
+                .insert(orderDetails);
+
+            if (detailsError) throw detailsError;
+
+            alert("🎉 تم إرسال طلبك بنجاح! رقم الطلب: " + newOrderId);
+            localStorage.removeItem('customerCart');
+            window.location.href = 'store.html';
+
+        } catch (err) {
+            console.error("حدث خطأ أثناء حفظ الطلب:", err);
+            alert("حدث خطأ أثناء حفظ الطلب: " + (err.message || JSON.stringify(err)));
+            btn.disabled = false;
+            btn.innerText = "✅ تأكيد وإرسال الطلب";
+        }
+    }
+</script>
 </body>
 </html>
