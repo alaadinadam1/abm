@@ -10,7 +10,6 @@
     <style>
         body { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
         
-        /* تحسينات الطباعة */
         @media print {
             body * { visibility: hidden; }
             #printableInvoice, #printableInvoice * { visibility: visible; }
@@ -46,12 +45,12 @@
             </div>
         </div>
 
-        <!-- عرض الكروت الخاصة بالجوال (تظهر فقط في الشاشات الصغيرة) -->
+        <!-- عرض كروت الجوال -->
         <div id="mobileOrdersList" class="block md:hidden space-y-3">
             <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
         </div>
 
-        <!-- الجدول الرئيسي (يظهر في الشاشات المتوسطة والكبيرة) -->
+        <!-- الجدول الرئيسي للكمبيوتر -->
         <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse text-xs md:text-sm">
@@ -75,11 +74,10 @@
         </div>
     </div>
 
-    <!-- النافذة المنبثقة للفاتورة Modal - معدلة للجوال -->
+    <!-- النافذة المنبثقة للفاتورة Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
             
-            <!-- شريط رأس النافذة المنبثقة -->
             <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
                 <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -88,19 +86,17 @@
                 <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-base transition active:scale-95">✕</button>
             </div>
 
-            <!-- محتوى الفاتورة -->
             <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
-                <!-- يتم حقن تصميم الفاتورة هنا عن طريق JavaScript -->
+                <!-- محتوى الفاتورة -->
             </div>
 
-            <!-- أزرار الإجراءات والمشاركة مثبتة أسفل الجوال -->
             <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
                 <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
                     إغلاق
                 </button>
                 
                 <div class="grid grid-cols-3 gap-2 w-full sm:w-auto">
-                    <button onclick="sendToCustomWhatsapp()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <button onclick="handleWhatsappShare()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         💬 واتساب
                     </button>
                     <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
@@ -112,6 +108,24 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <!-- نافذة اختيار الرقم التفاعلية (أرقام الطلب أو السجل) -->
+    <div id="phoneSelectorModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 border border-gray-100 animate-in zoom-in-95 duration-150">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h4 class="font-bold text-sm text-gray-900">اختر جهة الاتصال</h4>
+                <button onclick="closePhoneSelector()" class="text-gray-400 font-bold text-sm">✕</button>
+            </div>
+            
+            <div id="phoneOptionsList" class="space-y-2">
+                <!-- يُحقن الخيارات المتاحة هنا -->
+            </div>
+
+            <button onclick="closePhoneSelector()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">
+                إلغاء
+            </button>
         </div>
     </div>
 
@@ -162,7 +176,7 @@
             }
         }
 
-        // 2. عرض البيانات للكمبيوتر والجواب بشكل متجاوب
+        // 2. عرض البيانات
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -181,7 +195,6 @@
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
 
-                // كروت الجوال
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -207,7 +220,6 @@
                     </div>
                 </div>`;
 
-                // جدول الشاشات الكبيرة
                 tableHtml += `
                 <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
@@ -347,12 +359,11 @@
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
 
-        // 5. إغلاق النافذة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 6. تجميع النص
+        // 5. بناء النص المنسق
         function buildShareText(order, commission) {
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
@@ -373,8 +384,8 @@
             return text;
         }
 
-        // 7. توجيه للواتساب
-        function sendToCustomWhatsapp() {
+        // 6. التعامل مع اختيار رقم الواتساب من السجل أو الخيارات
+        async function handleWhatsappShare() {
             if (!currentActiveOrder) return;
 
             let totalCommission = 0;
@@ -382,27 +393,76 @@
                 currentActiveOrder.web_order_details.forEach(i => totalCommission += Number(i.commission || 0) * Number(i.qte || 1));
             }
 
-            const phone1 = currentActiveOrder.client_phone || '';
-            const phone2 = currentActiveOrder.client_second_phone || '';
+            const messageText = buildShareText(currentActiveOrder, totalCommission);
 
-            let promptMsg = "أدخل رقم الواتساب المطلوب:\n";
-            if (phone1) promptMsg += `1- ${phone1}\n`;
-            if (phone2) promptMsg += `2- ${phone2}\n`;
-
-            let inputPhone = prompt(promptMsg, phone1);
-            if (!inputPhone) return;
-
-            let cleanPhone = inputPhone.replace(/[^0-9]/g, '');
-            if (!cleanPhone) {
-                alert("يرجى إدخال رقم هاتف صحيح!");
-                return;
+            // التحقق من دعم المتصفح لفتح سجل الأسماء المباشر (Contact Picker API)
+            if ('contacts' in navigator && 'ContactsManager' in window) {
+                try {
+                    const contacts = await navigator.contacts.select(['tel'], { multiple: false });
+                    if (contacts && contacts.length > 0 && contacts[0].tel.length > 0) {
+                        const rawPhone = contacts[0].tel[0];
+                        const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+                        openWhatsappUrl(cleanPhone, messageText);
+                        return;
+                    }
+                } catch (e) {
+                    console.log("تم إلغاء اختيار جهة الاتصال أو عدم إعطاء صلاحية", e);
+                }
             }
 
-            const shareText = buildShareText(currentActiveOrder, totalCommission);
-            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(shareText)}`, '_blank');
+            // إذا كان المتصفح لا يدعم السجل المباشر، يتم إظهار قائمة الخيارات المرنة
+            showPhoneOptionsModal(messageText);
         }
 
-        // 8. نسخ النص
+        // إظهار نافذة الاختيار المرنة
+        function showPhoneOptionsModal(messageText) {
+            const container = document.getElementById('phoneOptionsList');
+            container.innerHTML = '';
+
+            const phone1 = currentActiveOrder.client_phone;
+            const phone2 = currentActiveOrder.client_second_phone;
+
+            if (phone1) {
+                const clean = phone1.replace(/[^0-9]/g, '');
+                container.innerHTML += `
+                    <button onclick="openWhatsappUrl('${clean}', \`${encodeURIComponent(messageText)}\`)" class="w-full text-right p-3 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition flex justify-between items-center text-xs font-bold text-emerald-900">
+                        <span>📱 رقم العميل الرئيسي</span>
+                        <span class="dir-ltr text-emerald-700">${phone1}</span>
+                    </button>
+                `;
+            }
+
+            if (phone2) {
+                const clean = phone2.replace(/[^0-9]/g, '');
+                container.innerHTML += `
+                    <button onclick="openWhatsappUrl('${clean}', \`${encodeURIComponent(messageText)}\`)" class="w-full text-right p-3 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition flex justify-between items-center text-xs font-bold text-blue-900">
+                        <span>📞 رقم إضافي</span>
+                        <span class="dir-ltr text-blue-700">${phone2}</span>
+                    </button>
+                `;
+            }
+
+            // خيار فتح الواتساب واختيار الدردشة يدويًا من داخل الواتساب مباشرة
+            container.innerHTML += `
+                <button onclick="openWhatsappUrl('', \`${encodeURIComponent(messageText)}\`)" class="w-full text-center p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition text-xs font-bold">
+                    💬 اختيار المحادثة من داخل الواتساب
+                </button>
+            `;
+
+            document.getElementById('phoneSelectorModal').classList.remove('hidden');
+        }
+
+        function closePhoneSelector() {
+            document.getElementById('phoneSelectorModal').classList.add('hidden');
+        }
+
+        function openWhatsappUrl(phone, encodedText) {
+            closePhoneSelector();
+            const target = phone ? `https://wa.me/${phone}?text=${encodedText}` : `https://api.whatsapp.com/send?text=${encodedText}`;
+            window.open(target, '_blank');
+        }
+
+        // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             let totalCommission = 0;
