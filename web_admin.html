@@ -147,9 +147,10 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // 1. إعدادات Supabase
+    // ⚠️ تنبيه: ضع هنا بيانات حسابك الحقيقي في Supabase
     const SUPABASE_URL = 'https://YOUR_SUPABASE_URL.supabase.co';
     const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let currentSelectedOrderId = null;
@@ -160,10 +161,15 @@
         loadOrders();
     });
 
-    // 2. تحميل جميع الطلبات من قاعدة البيانات
+    // تحميل الطلبات مع عرض الأخطاء التفصيلية في الصفحة
     async function loadOrders() {
         const tbody = document.getElementById('orders-list');
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">جاري التحميل...</td></tr>';
+
+        if (SUPABASE_URL.includes('YOUR_SUPABASE_URL')) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4"><strong>خطأ:</strong> يرجى وضع رابط Supabase ومفتاح ANON_KEY الصحيحين داخل السكربت.</td></tr>';
+            return;
+        }
 
         try {
             const { data: orders, error } = await supabaseClient
@@ -171,26 +177,29 @@
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error("Supabase Error Details:", error);
+                throw error;
+            }
 
             tbody.innerHTML = '';
             if (!orders || orders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">لا توجد طلبات متوفرة.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">لا توجد طلبات متوفرة في الجدول.</td></tr>';
                 return;
             }
 
             orders.forEach(order => {
                 const tr = document.createElement('tr');
-                const createdDate = new Date(order.created_at).toLocaleDateString('ar-LY');
+                const createdDate = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-LY') : '-';
 
                 tr.innerHTML = `
                     <td><strong>#${order.id_web_order}</strong></td>
-                    <td>${order.client_name}</td>
-                    <td>${order.client_phone}</td>
+                    <td>${order.client_name || '-'}</td>
+                    <td>${order.client_phone || '-'}</td>
                     <td>${order.client_address || '-'}</td>
                     <td>${createdDate}</td>
-                    <td><span class="badge bg-${getStatusBadgeClass(order.order_status)}">${order.order_status}</span></td>
-                    <td class="fw-bold text-success">${order.total_amount} د.ل</td>
+                    <td><span class="badge bg-${getStatusBadgeClass(order.order_status)}">${order.order_status || 'قيد المراجعة'}</span></td>
+                    <td class="fw-bold text-success">${order.total_amount || 0} د.ل</td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary" onclick="openInvoice(${order.id_web_order})">
                             <i class="fas fa-file-invoice me-1"></i> الفاتورة
@@ -202,16 +211,15 @@
 
         } catch (err) {
             console.error("خطأ في جلب الطلبات:", err);
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">حدث خطأ أثناء تحميل الطلبات.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">حدث خطأ أثناء تحميل الطلبات:<br><small>${err.message || JSON.stringify(err)}</small></td></tr>`;
         }
     }
 
-    // 3. عرض الفاتورة والتفاصيل والعمولات
+    // عرض الفاتورة
     async function openInvoice(orderId) {
         currentSelectedOrderId = orderId;
 
         try {
-            // أ. جلب بيانات الطلب الرئيسي
             const { data: order, error: orderErr } = await supabaseClient
                 .from('web_orders')
                 .select('*')
@@ -220,7 +228,6 @@
 
             if (orderErr) throw orderErr;
 
-            // ب. جلب تفاصيل منتجات الطلب
             const { data: details, error: detailsErr } = await supabaseClient
                 .from('web_order_details')
                 .select('*')
@@ -228,53 +235,53 @@
 
             if (detailsErr) throw detailsErr;
 
-            // ت. ملء بيانات الفاتورة
             document.getElementById('inv-id').innerText = order.id_web_order;
-            document.getElementById('inv-date').innerText = new Date(order.created_at).toLocaleDateString('ar-LY');
-            document.getElementById('inv-client-name').innerText = order.client_name;
-            document.getElementById('inv-client-phone').innerText = order.client_phone;
+            document.getElementById('inv-date').innerText = order.created_at ? new Date(order.created_at).toLocaleDateString('ar-LY') : '-';
+            document.getElementById('inv-client-name').innerText = order.client_name || '';
+            document.getElementById('inv-client-phone').innerText = order.client_phone || '';
             document.getElementById('inv-client-phone2').innerText = order.client_second_phone || '-';
-            document.getElementById('inv-client-address').innerText = order.client_address;
-            document.getElementById('update-status-select').value = order.order_status;
+            document.getElementById('inv-client-address').innerText = order.client_address || '';
+            document.getElementById('update-status-select').value = order.order_status || 'قيد المراجعة';
 
-            // ث. ملء الجدول وحساب العمولات والمجموع
             const tbody = document.getElementById('inv-items-body');
             tbody.innerHTML = '';
 
             let totalCommission = 0;
 
-            details.forEach((item, index) => {
-                const qte = item.qte || 1;
-                const price = item.price || 0;
-                const itemCommission = item.commission || 0;
-                const itemTotal = price * qte;
+            if (details && details.length > 0) {
+                details.forEach((item, index) => {
+                    const qte = item.qte || 1;
+                    const price = item.price || 0;
+                    const itemCommission = item.commission || 0;
+                    const itemTotal = price * qte;
 
-                totalCommission += (itemCommission * qte);
+                    totalCommission += (itemCommission * qte);
 
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${item.product_name}</td>
-                    <td>${qte}</td>
-                    <td>${price} د.ل</td>
-                    <td>${itemCommission} د.ل</td>
-                    <td>${itemTotal} د.ل</td>
-                `;
-                tbody.appendChild(tr);
-            });
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${item.product_name || '-'}</td>
+                        <td>${qte}</td>
+                        <td>${price} د.ل</td>
+                        <td>${itemCommission} د.ل</td>
+                        <td>${itemTotal} د.ل</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
 
             document.getElementById('inv-total-commission').innerText = totalCommission + ' د.ل';
-            document.getElementById('inv-total-amount').innerText = order.total_amount + ' د.ل';
+            document.getElementById('inv-total-amount').innerText = (order.total_amount || 0) + ' د.ل';
 
             invoiceModalInstance.show();
 
         } catch (err) {
             console.error("خطأ قراءة تفاصيل الطلب:", err);
-            alert("تعذر جلب بيانات الفاتورة.");
+            alert("تعذر جلب بيانات الفاتورة: " + (err.message || ''));
         }
     }
 
-    // 4. دالة تحديث حالة الطلب
+    // تحديث الحالة
     async function changeOrderStatus() {
         if (!currentSelectedOrderId) return;
         const newStatus = document.getElementById('update-status-select').value;
@@ -293,11 +300,10 @@
 
         } catch (err) {
             console.error("خطأ التحديث:", err);
-            alert("فشل تحديث حالة الطلب.");
+            alert("فشل تحديث حالة الطلب: " + (err.message || ''));
         }
     }
 
-    // مساعد لتغيير لون شارة الحالة (Badge)
     function getStatusBadgeClass(status) {
         switch (status) {
             case 'قيد المراجعة': return 'warning text-dark';
