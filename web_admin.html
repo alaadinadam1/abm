@@ -119,11 +119,40 @@
         );
 
         let globalOrders = [];
+        let globalUsersMap = {}; // خارطة لحفظ بيانات المستخدمين لتسريع الربط
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات شاملة بيانات المسوق من جدول tb_users وقيمة العمولة المباشرة
+        // 1. جلب بيانات المستخدمين وتخزينها برمجيًا
+        async function fetchUsers() {
+            try {
+                const { data: users, error } = await supabaseClient
+                    .from('tb_users')
+                    .select('id, username, fullname, bank_account');
+
+                if (error) throw error;
+
+                // تحويل المستخدمين لخارطة بالـ ID وباسم المستخدم لسهولة الربط بأي منهما
+                globalUsersMap = {};
+                (users || []).forEach(u => {
+                    if (u.id !== undefined && u.id !== null) {
+                        globalUsersMap[String(u.id)] = u;
+                    }
+                    if (u.username) {
+                        globalUsersMap[String(u.username).trim().toLowerCase()] = u;
+                    }
+                });
+            } catch (err) {
+                console.error("خطأ عند جلب المستخدمين:", err);
+            }
+        }
+
+        // 2. جلب الطلبات وجدول المنتجات والعمولات
         async function fetchOrders() {
             try {
+                // أولاً: جلب المستخدمين لتحديث الخارطة
+                await fetchUsers();
+
+                // ثانياً: جلب الطلبات وتفاصيلها
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
@@ -135,10 +164,6 @@
                         total_amount,
                         date_created,
                         id_marketer,
-                        tb_users (
-                            fullname,
-                            bank_account
-                        ),
                         web_order_details (
                             id_product,
                             product_name,
@@ -167,17 +192,26 @@
             }
         }
 
-        // استخراج بيانات المسوق بأمان من جدول tb_users
+        // دالة المطابقة واستخراج بيانات المسوق من tb_users برمجيًا
         function getMarketerData(order) {
-            if (!order || !order.tb_users) return { name: 'غير محدد', account: 'غير محدد' };
-            const u = Array.isArray(order.tb_users) ? order.tb_users[0] : order.tb_users;
-            return {
-                name: u?.fullname || 'غير محدد',
-                account: u?.bank_account || 'غير محدد'
-            };
+            if (!order || order.id_marketer === undefined || order.id_marketer === null) {
+                return { name: 'غير محدد', account: 'غير محدد' };
+            }
+
+            const marketerKey = String(order.id_marketer).trim().toLowerCase();
+            const matchedUser = globalUsersMap[marketerKey];
+
+            if (matchedUser) {
+                return {
+                    name: matchedUser.fullname || matchedUser.username || 'بدون اسم',
+                    account: matchedUser.bank_account || 'غير مسجل'
+                };
+            }
+
+            return { name: `مسوق (${order.id_marketer})`, account: 'غير محدد' };
         }
 
-        // 2. عرض القائمة والجدول
+        // 3. عرض القائمة والجدول
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -248,7 +282,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
+        // 4. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -271,7 +305,7 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية وبيانات المسوق الحسابية
+        // 5. عرض الفاتورة بالعمولة الحقيقية وبيانات المسوق الحسابية
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -328,7 +362,7 @@
                             <div><b class="text-slate-700">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
 
-                        <!-- بيانات المسوق والحساب البنكي -->
+                        <!-- بيانات المسوق والحساب البنكي من tb_users -->
                         <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
                             <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المسوق</span>
                             <div><b class="text-purple-900">👤 المسوق:</b> <span class="font-bold text-purple-800">${marketer.name}</span></div>
@@ -377,7 +411,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك للواتساب والنسخ بما فيه المسوق والحساب البنكي
+        // 6. النص المشارك للواتساب والنسخ
         function buildShareText(order, commission) {
             const marketer = getMarketerData(order);
 
@@ -404,7 +438,7 @@
             return text;
         }
 
-        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
+        // 7. إرسال إلى الواتساب
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -414,7 +448,7 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
-        // 7. نسخ النص
+        // 8. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -425,7 +459,7 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
-        // 8. حذف طلب
+        // 9. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
