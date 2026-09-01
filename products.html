@@ -120,7 +120,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات وجلب قيمة commission من جدول products بدقة
+        // 1. جلب الطلبات وقيمة العمولة المباشرة من جدول products
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -229,7 +229,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. دالة حاسبة للعمولة تحلل الهيكل المرجع بدقة من Supabase
+        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -239,7 +239,6 @@
                 let unitCommission = 0;
 
                 if (item.products) {
-                    // في حال إرجاع الكائن كعنصر واحد أو كمصفوفة
                     if (Array.isArray(item.products) && item.products.length > 0) {
                         unitCommission = Number(item.products[0].commission || 0);
                     } else if (typeof item.products === 'object') {
