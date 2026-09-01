@@ -139,32 +139,7 @@
             }
         }
 
-        // 2. دالة مطابقة بيانات المستخدم بحسب id_marketer الموجود في الطلب
-        function getUserInfo(marketerId) {
-            if (!marketerId) return { name: 'غير محدد', account: 'غير محدد' };
-
-            const searchVal = String(marketerId).trim().toLowerCase();
-
-            // إيجاد المستخدم بالمطابقة مع id أو username
-            const user = globalUsers.find(u => 
-                String(u.id).trim().toLowerCase() === searchVal || 
-                (u.username && String(u.username).trim().toLowerCase() === searchVal)
-            );
-
-            if (user) {
-                return {
-                    name: user.fullname || user.username || 'بدون اسم',
-                    account: user.bank_account || user.bank_accounttext || 'غير مسجل'
-                };
-            }
-
-            return { name: `مستخدم (${marketerId})`, account: 'غير مسجل' };
-        }
-
-        // 3. جلب الطلبات وقائمات المنتجات
-        async function fetchOrders() {
-            try {
-                // جلب قائمة المستخدمين أولاً
+           // جلب قائمة المستخدمين أولاً
                 await fetchUsers();
 
                 const { data: orders, error } = await supabaseClient
