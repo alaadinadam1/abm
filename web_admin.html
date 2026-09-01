@@ -122,12 +122,12 @@
         let globalUsers = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات جدول المستخدمين tb_users بشكل مستقل وبسيط
+        // 1. جلب بيانات جدول المستخدمين tb_users
         async function fetchUsers() {
             try {
                 const { data, error } = await supabaseClient
                     .from('tb_users')
-                    .select('*');
+                    .select('id, username, fullname, bank_account');
 
                 if (error) {
                     console.error("خطأ عند جلب المستخدمين:", error);
@@ -139,20 +139,34 @@
             }
         }
 
-           // جلب قائمة المستخدمين أولاً
+        // 2. الحصول على بيانات المسوق المطابق من قائمة المستخدمين
+        function getUserData(userId) {
+            const user = globalUsers.find(u => u.id == userId || u.id === Number(userId));
+            if (user) {
+                return {
+                    name: user.fullname || user.username || 'غير محدد',
+                    account: user.bank_account || 'غير مسجل'
+                };
+            }
+            return { name: 'غير محدد', account: 'غير مسجل' };
+        }
+
+        // 3. جلب الطلبات والمنتجات
+        async function fetchOrders() {
+            try {
                 await fetchUsers();
 
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
                         id_web_order,
+                        id_user,
                         client_name,
                         client_phone,
                         client_second_phone,
                         client_address,
                         total_amount,
                         date_created,
-                        
                         web_order_details (
                             id_product,
                             product_name,
@@ -199,7 +213,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                
+                const user = getUserData(order.id_user);
 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -283,7 +297,7 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-            
+            const user = getUserData(order.id_user);
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -334,7 +348,7 @@
 
                         <!-- بيانات المستخدم من tb_users -->
                         <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
-                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المستخدم (tb_users)</span>
+                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المسوق (tb_users)</span>
                             <div><b class="text-purple-900">👤 الاسم:</b> <span class="font-bold text-purple-800">${user.name}</span></div>
                             <div><b class="text-purple-900">🏦 الحساب البنكي:</b> <span class="font-mono text-purple-900 font-bold dir-ltr inline-block">${user.account}</span></div>
                         </div>
@@ -383,7 +397,7 @@
 
         // 7. مشاركة ونسخ النص
         function buildShareText(order, commission) {
-            
+            const user = getUserData(order.id_user);
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
