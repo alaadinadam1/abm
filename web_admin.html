@@ -190,7 +190,7 @@
                     <div class="text-xs space-y-1">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
-                        ${order.client_second_phone ? `<div class="text-gray-400 dir-ltr text-right">📞 ${order.client_second_phone}</div>` : ''}
+                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
@@ -210,8 +210,8 @@
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
                     <td class="p-4">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || ''}</div>
-                        ${order.client_second_phone ? `<div class="text-gray-400 text-xs dir-ltr">📞 ${order.client_second_phone}</div>` : ''}
+                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
+                        <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
                     </td>
                     <td class="p-4 text-xs font-medium text-gray-600">${order.client_address || 'لم يحدد'}</td>
                     <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
@@ -252,7 +252,7 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية
+        // 4. عرض الفاتورة بالعمولة الحقيقية وعرض الرقمين دائماً
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -305,8 +305,8 @@
                         </div>
                         <div class="h-px bg-slate-200/60 my-1"></div>
                         <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                            <div><b class="text-slate-800">📱 الهاتف:</b> <span class="dir-ltr inline-block">${order.client_phone || '-'}</span></div>
-                            ${order.client_second_phone ? `<div><b class="text-slate-800">📞 ثانوي:</b> <span class="dir-ltr inline-block">${order.client_second_phone}</span></div>` : ''}
+                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
                             <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
                     </div>
@@ -352,11 +352,12 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك
+        // 5. النص المشارك للواتساب والنسخ مع الرقمين
         function buildShareText(order, commission) {
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
-            text += `📱 *الهاتف:* ${order.client_phone || '-'}\n`;
+            text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
+            text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
@@ -380,7 +381,6 @@
             const messageText = buildShareText(currentActiveOrder, realCommission);
             const encodedText = encodeURIComponent(messageText);
             
-            // فتح واتساب مباشرة مع نص الرسالة فقط لتحديد جهة الاتصال يدوياً
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
