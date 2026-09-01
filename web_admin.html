@@ -58,7 +58,6 @@
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
-                            <th class="p-4">المستخدم (المسوق)</th>
                             <th class="p-4">العنوان</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
@@ -67,7 +66,7 @@
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -119,49 +118,15 @@
         );
 
         let globalOrders = [];
-        let globalUsers = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات المستخدمين
-        async function fetchUsers() {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('tb_users')
-                    .select('id, username, fullname, bank_account');
-
-                if (error) {
-                    console.error("خطأ عند جلب المستخدمين:", error);
-                    return;
-                }
-                globalUsers = data || [];
-            } catch (err) {
-                console.error("استثناء عند جلب المستخدمين:", err);
-            }
-        }
-
-        // 2. البحث عن بيانات المسوق
-        function getUserData(userId) {
-            const user = globalUsers.find(u => u.id == userId || u.id === Number(userId));
-            if (user) {
-                return {
-                    name: user.fullname || user.username || 'غير محدد',
-                    account: user.bank_account || 'غير مسجل'
-                };
-            }
-            return { name: 'غير محدد', account: 'غير مسجل' };
-        }
-
-        // 3. جلب الطلبات (Async معالجة بالكامل)
+        // 1. جلب الطلبات وقيمة العمولة المباشرة من جدول products
         async function fetchOrders() {
             try {
-                // جلب المستخدمين أولاً
-                await fetchUsers();
-
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
                         id_web_order,
-                        id_user,
                         client_name,
                         client_phone,
                         client_second_phone,
@@ -196,14 +161,14 @@
             }
         }
 
-        // 4. عرض البيانات في الواجهة
+        // 2. عرض القائمة والجدول
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
 
             if (!orders || orders.length === 0) {
                 const emptyHtml = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مسجلة حالياً.</div>`;
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
                 mobileList.innerHTML = emptyHtml;
                 return;
             }
@@ -214,7 +179,6 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const user = getUserData(order.id_user);
 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -227,8 +191,7 @@
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
                         <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
-                        <div class="text-purple-700 font-bold pt-1">👤 المستخدم: ${user.name}</div>
-                        <div class="text-gray-500">📍 ${order.client_address || 'لم يحدد'}</div>
+                        <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
 
@@ -250,7 +213,6 @@
                         <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
                         <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
                     </td>
-                    <td class="p-4 font-bold text-purple-700 text-xs">${user.name}</td>
                     <td class="p-4 text-xs font-medium text-gray-600">${order.client_address || 'لم يحدد'}</td>
                     <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
@@ -267,7 +229,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 5. حساب العمولة
+        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -290,7 +252,7 @@
             return totalCommission;
         }
 
-        // 6. فتح النافذة المنبثقة
+        // 4. عرض الفاتورة بالعمولة الحقيقية وعرض الرقمين دائماً
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -298,7 +260,6 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-            const user = getUserData(order.id_user);
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -337,19 +298,16 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
-                            <span class="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">بيانات العميل</span>
-                            <div class="font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</div>
-                            <div><b class="text-slate-700">📱 رئيسي:</b> <span class="dir-ltr inline-block text-emerald-700 font-semibold">${order.client_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-700">📞 ثانوي:</b> <span class="dir-ltr inline-block text-slate-600">${order.client_second_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-700">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+                    <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 text-xs space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
+                            <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
                         </div>
-
-                        <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
-                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المسوق (tb_users)</span>
-                            <div><b class="text-purple-900">👤 الاسم:</b> <span class="font-bold text-purple-800">${user.name}</span></div>
-                            <div><b class="text-purple-900">🏦 الحساب البنكي:</b> <span class="font-mono text-purple-900 font-bold dir-ltr inline-block">${user.account}</span></div>
+                        <div class="h-px bg-slate-200/60 my-1"></div>
+                        <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
+                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
                     </div>
 
@@ -394,17 +352,13 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 7. المشاركة والنسخ
+        // 5. النص المشارك للواتساب والنسخ مع الرقمين
         function buildShareText(order, commission) {
-            const user = getUserData(order.id_user);
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
-            text += `------------------------------\n`;
-            text += `👤 *المستخدم:* ${user.name}\n`;
-            text += `🏦 *الحساب البنكي:* ${user.account}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
@@ -420,6 +374,7 @@
             return text;
         }
 
+        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -429,6 +384,7 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
+        // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -439,6 +395,7 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
+        // 8. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
@@ -456,10 +413,7 @@
             }
         }
 
-        // تشغيل التحميل عند اكتمال تحميل المستند آمن وبدون تعارض
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchOrders();
-        });
+        window.onload = fetchOrders;
     </script>
 </body>
 </html>
