@@ -152,7 +152,7 @@
                         client_address,
                         total_amount,
                         date_created,
-                        id_marketer,
+                        
                         web_order_details (
                             id_product,
                             product_name,
@@ -199,7 +199,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const user = getUserInfo(order.id_marketer);
+                
 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -283,7 +283,7 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-            const user = getUserInfo(order.id_marketer);
+            
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -383,8 +383,7 @@
 
         // 7. مشاركة ونسخ النص
         function buildShareText(order, commission) {
-            const user = getUserInfo(order.id_marketer);
-
+            
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
