@@ -58,6 +58,7 @@
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
+                            <th class="p-4">المسوق</th>
                             <th class="p-4">العنوان</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
@@ -66,7 +67,7 @@
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -120,7 +121,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات وقيمة العمولة المباشرة من جدول products
+        // 1. جلب الطلبات شاملة بيانات المسوق وقيمة العمولة المباشرة
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -133,6 +134,11 @@
                         client_address,
                         total_amount,
                         date_created,
+                        id_marketer,
+                        marketers (
+                            marketer_name,
+                            marketer_account
+                        ),
                         web_order_details (
                             id_product,
                             product_name,
@@ -161,6 +167,16 @@
             }
         }
 
+        // استخراج بيانات المسوق بأمان
+        function getMarketerData(order) {
+            if (!order || !order.marketers) return { name: 'غير محدد', account: 'غير محدد' };
+            const m = Array.isArray(order.marketers) ? order.marketers[0] : order.marketers;
+            return {
+                name: m?.marketer_name || 'غير محدد',
+                account: m?.marketer_account || 'غير محدد'
+            };
+        }
+
         // 2. عرض القائمة والجدول
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
@@ -168,7 +184,7 @@
 
             if (!orders || orders.length === 0) {
                 const emptyHtml = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مسجلة حالياً.</div>`;
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
                 mobileList.innerHTML = emptyHtml;
                 return;
             }
@@ -179,6 +195,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
+                const marketer = getMarketerData(order);
 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -191,7 +208,8 @@
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
                         <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
-                        <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
+                        <div class="text-purple-700 font-bold pt-1">📢 المسوق: ${marketer.name}</div>
+                        <div class="text-gray-500">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
 
@@ -213,6 +231,7 @@
                         <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
                         <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
                     </td>
+                    <td class="p-4 font-bold text-purple-700 text-xs">${marketer.name}</td>
                     <td class="p-4 text-xs font-medium text-gray-600">${order.client_address || 'لم يحدد'}</td>
                     <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
@@ -252,7 +271,7 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية وعرض الرقمين دائماً
+        // 4. عرض الفاتورة بالعمولة الحقيقية وبيانات المسوق الحسابية
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -260,6 +279,7 @@
             currentActiveOrder = order;
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
+            const marketer = getMarketerData(order);
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -298,16 +318,21 @@
                         </div>
                     </div>
 
-                    <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 text-xs space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
-                            <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- بيانات العميل -->
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
+                            <span class="text-[9px] font-extrabold text-slate-400 uppercase block mb-1">بيانات العميل</span>
+                            <div class="font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</div>
+                            <div><b class="text-slate-700">📱 رئيسي:</b> <span class="dir-ltr inline-block text-emerald-700 font-semibold">${order.client_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-700">📞 ثانوي:</b> <span class="dir-ltr inline-block text-slate-600">${order.client_second_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-700">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
                         </div>
-                        <div class="h-px bg-slate-200/60 my-1"></div>
-                        <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+
+                        <!-- بيانات المسوق والحساب البنكي -->
+                        <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 text-xs space-y-1">
+                            <span class="text-[9px] font-extrabold text-purple-400 uppercase block mb-1">بيانات المسوق</span>
+                            <div><b class="text-purple-900">👤 المسوق:</b> <span class="font-bold text-purple-800">${marketer.name}</span></div>
+                            <div><b class="text-purple-900">🏦 الحساب البنكي:</b> <span class="font-mono text-purple-900 font-bold dir-ltr inline-block">${marketer.account}</span></div>
                         </div>
                     </div>
 
@@ -352,13 +377,18 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك للواتساب والنسخ مع الرقمين
+        // 5. النص المشارك للواتساب والنسخ بما فيه المسوق والحساب البنكي
         function buildShareText(order, commission) {
+            const marketer = getMarketerData(order);
+
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
+            text += `------------------------------\n`;
+            text += `📢 *المسوق:* ${marketer.name}\n`;
+            text += `🏦 *الحساب البنكي:* ${marketer.account}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
