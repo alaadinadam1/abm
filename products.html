@@ -120,9 +120,10 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب بيانات الطلبات مع جلب العمولة من جدول المنتجات (products) مباشرةً
+        // 1. جلب بيانات الطلبات مع تفاصيل المنتجات والعمولة
         async function fetchOrders() {
             try {
+                // نطلب عمود العمولة من تفاصيل الطلب، وأيضاً من جدول products كخيار احتياطي
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
@@ -139,6 +140,7 @@
                             qte,
                             price,
                             amount,
+                            commission,
                             products (
                                 commission
                             )
@@ -246,13 +248,21 @@
             }
         }
 
-        // دالة مساعدة لحساب إجمالي العمولة من جدول products
+        // دالة موحدة لحساب العمولة تدعم كل الاحتمالات
         function calculateTotalCommission(order) {
             let totalCommission = 0;
-            if (order.web_order_details && order.web_order_details.length > 0) {
+            if (order && order.web_order_details && order.web_order_details.length > 0) {
                 order.web_order_details.forEach(item => {
-                    const itemCommission = item.products?.commission || 0;
-                    totalCommission += Number(itemCommission) * Number(item.qte || 1);
+                    // فحص العمولة من جدول المنتجات أولاً، وإذا لم توجد نأخذها من تفاصيل الطلب
+                    let itemComm = 0;
+                    if (item.products && item.products.commission !== undefined && item.products.commission !== null) {
+                        itemComm = item.products.commission;
+                    } else if (item.commission !== undefined && item.commission !== null) {
+                        itemComm = item.commission;
+                    }
+                    
+                    const qte = Number(item.qte || 1);
+                    totalCommission += (Number(itemComm) * qte);
                 });
             }
             return totalCommission;
@@ -379,7 +389,7 @@
             return text;
         }
 
-        // 6. فتح تطبيق الواتساب مباشرةً واختيار الرقم من داخل التطبيق
+        // 6. فتح تطبيق الواتساب مباشرة عبر البروتوكول المباشر whatsapp://
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const totalCommission = calculateTotalCommission(currentActiveOrder);
@@ -387,8 +397,8 @@
             const messageText = buildShareText(currentActiveOrder, totalCommission);
             const encodedText = encodeURIComponent(messageText);
             
-            // فتح الواتساب مباشرة مع نص المراسلة جاهزاً
-            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
+            // فتح تطبيق الواتساب المكتبي أو الجوال مباشرة مع تجهيز نص الرسالة واختيار المتلقي من التطبيق
+            window.location.href = `whatsapp://send?text=${encodedText}`;
         }
 
         // 7. نسخ النص
