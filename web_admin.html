@@ -107,8 +107,8 @@
     </div>
 
     <script>
-        // تنبيه: يرجى وضع المفتاح الخاص بـ Supabase (Anon Key الذي يبدأ عادة بـ eyJ...) هنا
         const SUPABASE_URL = "https://ihlwkwiimimoiplfqcdk.supabase.co";
+        // ملاحظة: تأكد من أن مفتاح anon الأخير الذي تنسخه من لوحة التحكم يبدأ عادةً بـ eyJ...
         const SUPABASE_KEY = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"; 
 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -116,21 +116,15 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات وقيمة العمولة المباشرة مع بيانات المسوق من tb_users المربوطة بـ id_user
+        // 1. جلب الطلبات مع تحسين ربط tb_users
         async function fetchOrders() {
             try {
+                // جلب الطلبات وجدول المبيعات بالتفصيل
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
-                        id_web_order,
-                        client_name,
-                        client_phone,
-                        client_second_phone,
-                        client_address,
-                        total_amount,
-                        date_created,
-                        id_user,
-                        tb_users:id_user (
+                        *,
+                        tb_users (
                             id,
                             username,
                             fullname,
@@ -153,6 +147,9 @@
                 if (error) throw error;
                 globalOrders = orders || [];
                 
+                // طباعة البيانات في Console للمعاينة والتدقيق
+                console.log("الطلبات المجلوبة بالكامل مع بيانات المستخدمين:", globalOrders);
+
                 const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
                 document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
 
@@ -232,7 +229,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
+        // 3. حساب العمولة
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -255,8 +252,30 @@
             return totalCommission;
         }
 
-        // 4. عرض الفاتورة بالعمولة الحقيقية وعرض بيانات المسوق والحساب البنكي
-        function openInvoiceModal(orderId) {
+        // 4. دالة استخراج بيانات المستخدم الآمنة المحدثة
+        function extractUserData(order) {
+            let uName = 'غير مسجل';
+            let bAccount = 'غير مسجل';
+
+            if (order.tb_users) {
+                let userObj = order.tb_users;
+                
+                // إذا أرجعت Supabase البيانات في مصفوفة
+                if (Array.isArray(userObj) && userObj.length > 0) {
+                    userObj = userObj[0];
+                }
+
+                if (userObj) {
+                    uName = userObj.fullname || userObj.username || 'غير مسجل';
+                    bAccount = userObj.bank_account || 'غير مسجل';
+                }
+            }
+
+            return { userName: uName, bankAccount: bAccount };
+        }
+
+        // 5. فتح الفاتورة
+        async function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
 
@@ -264,14 +283,26 @@
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
 
-            // استخراج بيانات المسوق بأمان من tb_users
-            let userObj = order.tb_users;
-            if (Array.isArray(userObj) && userObj.length > 0) {
-                userObj = userObj[0];
+            // جلب البيانات بمرونة
+            let { userName, bankAccount } = extractUserData(order);
+
+            // خطة احتياطية: إذا كانت البيانات لا تزال "غير مسجل" و يوجد id_user في الطلب، نطلبها مباشرة من Supabase
+            if ((userName === 'غير مسجل' || bankAccount === 'غير مسجل') && order.id_user) {
+                try {
+                    const { data: uData } = await supabaseClient
+                        .from('tb_users')
+                        .select('username, fullname, bank_account')
+                        .eq('id', order.id_user)
+                        .maybeSingle();
+
+                    if (uData) {
+                        userName = uData.fullname || uData.username || userName;
+                        bankAccount = uData.bank_account || bankAccount;
+                    }
+                } catch(e) {
+                    console.log("تعذر الجلب الاحتياطي للمستخدم:", e);
+                }
             }
-            
-            const userName = userObj?.fullname || userObj?.username || 'غير مسجل';
-            const bankAccount = userObj?.bank_account || 'غير مسجل';
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -376,15 +407,9 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 5. النص المشارك للواتساب والنسخ
+        // 6. نص المشاركة
         function buildShareText(order, commission) {
-            let userObj = order.tb_users;
-            if (Array.isArray(userObj) && userObj.length > 0) {
-                userObj = userObj[0];
-            }
-            
-            const userName = userObj?.fullname || userObj?.username || 'غير مسجل';
-            const bankAccount = userObj?.bank_account || 'غير مسجل';
+            const { userName, bankAccount } = extractUserData(order);
 
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
@@ -409,7 +434,6 @@
             return text;
         }
 
-        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -419,7 +443,6 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
-        // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -430,7 +453,6 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
-        // 8. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
