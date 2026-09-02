@@ -142,31 +142,40 @@
             }
         }
 
-        // 1. جلب الطلبات من قواعد البيانات
+        // 1. جلب الطلبات من قواعد البيانات مع معالجة الاستعلامات لتجنب الأخطاء
         async function fetchOrders() {
             try {
-                const { data: orders, error } = await supabaseClient
+                // جلب الطلبات الأساسية
+                const { data: orders, error: ordersError } = await supabaseClient
                     .from('web_orders')
-                    .select(`
-                        *,
-                        web_order_details (
-                            id_product,
-                            product_name,
-                            qte,
-                            price,
-                            amount,
-                            products (
-                                id_product,
-                                commission
-                            )
-                        )
-                    `)
+                    .select('*')
                     .order('date_created', { ascending: false });
 
-                if (error) throw error;
+                if (ordersError) throw ordersError;
+
+                let fetchedOrders = orders || [];
+
+                // جلب تفاصيل المنتجات لكل الطلبات
+                if (fetchedOrders.length > 0) {
+                    const orderIds = fetchedOrders.map(o => o.id_web_order);
+                    const { data: details } = await supabaseClient
+                        .from('web_order_details')
+                        .select('*')
+                        .in('id_web_order', orderIds);
+
+                    const detailsMap = {};
+                    (details || []).forEach(d => {
+                        if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
+                        detailsMap[d.id_web_order].push(d);
+                    });
+
+                    fetchedOrders.forEach(o => {
+                        o.web_order_details = detailsMap[o.id_web_order] || [];
+                    });
+                }
 
                 const savedExtra = getSavedExtraData();
-                globalOrders = orders || [];
+                globalOrders = fetchedOrders;
 
                 // دمج البيانات المحفوظة محلياً
                 globalOrders.forEach(o => {
@@ -214,7 +223,7 @@
             }
         }
 
-        // 4. اعتماد الطلب (سيختفي فوراً من هذه القائمة ويذهب لصفحة الفواتير المعتمدة)
+        // 4. اعتماد الطلب
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -228,7 +237,7 @@
             savedExtra[orderId].isApproved = newApprovedState;
             saveExtraData(savedExtra);
 
-            // تحديث الواجهة فوراً ليختفي الطلب المعتمد من القائمة
+            // تحديث الواجهة فوراً
             renderUI();
 
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
@@ -246,7 +255,125 @@
             }
         }
 
-        // 5. رسم جدول الطلبات والكروت
+        // 5. حذف طلب
+        async function deleteOrder(orderId) {
+            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
+
+            try {
+                // حذف التفاصيل أولاً
+                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
+                // حذف الطلب الرئيسي
+                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
+
+                if (error) throw error;
+
+                globalOrders = globalOrders.filter(o => o.id_web_order !== orderId);
+                renderUI();
+                alert('تم حذف الطلب بنجاح');
+            } catch (err) {
+                alert('حدث خطأ أثناء الحذف: ' + err.message);
+            }
+        }
+
+        // 6. معاينة وفتح الفاتورة
+        function openInvoiceModal(orderId) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (!order) return;
+
+            currentActiveOrder = order;
+
+            const modalBody = document.getElementById('modalInvoiceCard');
+            let detailsHtml = '';
+
+            if (order.web_order_details && order.web_order_details.length > 0) {
+                order.web_order_details.forEach(item => {
+                    const price = Number(item.price || 0).toFixed(2);
+                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    detailsHtml += `
+                    <tr class="border-b border-gray-100 text-xs">
+                        <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
+                        <td class="py-2 px-1 text-center">${item.qte || 1}</td>
+                        <td class="py-2 px-1 text-center">${price}</td>
+                        <td class="py-2 px-1 text-left font-bold">${amount}</td>
+                    </tr>`;
+                });
+            } else {
+                detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
+            }
+
+            modalBody.innerHTML = `
+            <div id="printableInvoice" class="space-y-4">
+                <div class="text-center border-b pb-3 border-gray-200">
+                    <h2 class="text-lg font-black text-slate-900">فاتورة طلب #${order.id_web_order}</h2>
+                    <p class="text-[11px] text-gray-500">${order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : ''}</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">العميل:</span>
+                        <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">الهاتف:</span>
+                        <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-gray-500 block text-[10px]">العنوان:</span>
+                        <span class="font-semibold text-gray-800">${order.client_address || 'لم يحدد'}</span>
+                    </div>
+                </div>
+
+                ${(order.custom_marketer_name || order.custom_bank_name) ? `
+                <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
+                    <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
+                    ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
+                    ${order.custom_bank_name ? `<div>• البنك: <span class="font-semibold">${order.custom_bank_name}</span></div>` : ''}
+                    ${order.custom_marketer_account ? `<div>• الحساب: <span class="font-semibold">${order.custom_marketer_account}</span></div>` : ''}
+                </div>` : ''}
+
+                <div>
+                    <table class="w-full text-right border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-200 text-[11px] text-gray-500">
+                                <th class="py-1.5 px-1">المنتج</th>
+                                <th class="py-1.5 px-1 text-center">الكمية</th>
+                                <th class="py-1.5 px-1 text-center">السعر</th>
+                                <th class="py-1.5 px-1 text-left">المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${detailsHtml}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-between items-center bg-slate-900 text-white p-3 rounded-xl font-bold text-sm">
+                    <span>المبلغ الإجمالي:</span>
+                    <span class="text-emerald-400 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
+                </div>
+            </div>`;
+
+            document.getElementById('invoiceModal').classList.remove('hidden');
+        }
+
+        // 7. إرسال إلى واتساب
+        function sendToWhatsappDirectly() {
+            if (!currentActiveOrder) return;
+            const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
+            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، بخصوص طلبك رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س.`;
+            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        // 8. نسخ نص الفاتورة
+        function copyInvoiceText() {
+            if (!currentActiveOrder) return;
+            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('تم نسخ تفاصيل الفاتورة بنجاح');
+            });
+        }
+
+        // 9. رسم جدول الطلبات والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
