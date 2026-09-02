@@ -37,7 +37,10 @@
                 <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">عرض وإدارة جميع الفواتير الصادرة والمعتمدة</p>
             </div>
             
-            <div class="flex items-center gap-3 w-full sm:w-auto">
+            <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <a href="web_admin.html" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 border border-indigo-200">
+                    ⬅️ <span class="hidden sm:inline">الرجوع للـ Admin</span>
+                </a>
                 <div class="bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl text-right flex-1 sm:flex-none">
                     <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">إجمالي المبيعات المعتمدة</span>
                     <span id="totalRevenue" class="text-lg sm:text-xl font-black text-emerald-900">0.00 ج.س</span>
@@ -107,14 +110,17 @@
                     إغلاق
                 </button>
                 
-                <div class="grid grid-cols-3 gap-2 w-full sm:w-auto">
-                    <button onclick="sendToWhatsappDirectly()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                <div class="grid grid-cols-4 gap-1.5 w-full sm:w-auto">
+                    <button onclick="revokeApprovalFromModal()" class="bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold py-2.5 px-2 rounded-xl text-[10px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm" title="إلغاء اعتماد الفاتورة ورجوعها للآدمين">
+                        ↩️ إرجاع للـ Admin
+                    </button>
+                    <button onclick="sendToWhatsappDirectly()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3 rounded-xl text-[10px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         💬 واتساب
                     </button>
-                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3 rounded-xl text-[10px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         📋 نسخ
                     </button>
-                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-4 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3 rounded-xl text-[10px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         🖨️ طباعة
                     </button>
                 </div>
@@ -240,35 +246,73 @@
             }
         }
 
-        // 5. إلغاء اعتماد الفاتورة (لتعود لقائمة الطلبات)
+        // 5. إلغاء اعتماد الفاتورة (لتعود لقائمة الطلبات web_admin.html)
         async function revokeApproval(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في إلغاء اعتماد الفاتورة #${orderId} وإعادتها لقائمة الطلبات؟`)) return;
+            if (!confirm(`هل أنت تأكد من رغبتك في إلغاء اعتماد الفاتورة #${orderId} وإعادتها لقائمة الطلبات (web_admin.html)؟`)) return;
 
-            const order = approvedInvoices.find(o => o.id_web_order === orderId);
-            if (order) {
-                order.is_approved = false;
+            try {
+                // 1. التحديث الفعلي في قاعدة البيانات Supabase
+                const { error } = await supabaseClient
+                    .from('web_orders')
+                    .update({ is_approved: false })
+                    .eq('id_web_order', orderId);
 
+                if (error) {
+                    console.warn("تنبيه عند تحديث السيرفر:", error.message);
+                }
+
+                // 2. التحديث في التخزين المحلي LocalStorage
                 const savedExtra = getSavedExtraData();
                 if (!savedExtra[orderId]) savedExtra[orderId] = {};
                 savedExtra[orderId].isApproved = false;
                 saveExtraData(savedExtra);
 
-                // إزالتها فوراً من الصفحة الحالية
+                // 3. إزالة الفاتورة فوراً من العرض في هذه الصفحة
                 approvedInvoices = approvedInvoices.filter(o => o.id_web_order !== orderId);
                 filterInvoices();
 
-                try {
-                    await supabaseClient
-                        .from('web_orders')
-                        .update({ is_approved: false })
-                        .eq('id_web_order', orderId);
-                } catch (e) {
-                    console.log("تم حفظ إلغاء الاعتماد محلياً بنجاح.");
+                // 4. إغلاق النافذة المنبثقة إن كانت مفتوحة
+                closeInvoiceModal();
+
+                // 5. التخيير بالتوجيه المباشر لصفحة الأدمين
+                if (confirm(`تم إلغاء اعتماد الفاتورة #${orderId} بنجاح وإعادتها لقائمة الطلبات.\n\nهل تريد الذهاب لصفحة web_admin.html الآن؟`)) {
+                    window.location.href = 'web_admin.html';
                 }
+
+            } catch (err) {
+                console.error("خطأ أثناء إرجاع الطلب:", err);
+                alert("حدث خطأ أثناء إلغاء الاعتماد: " + (err.message || err));
             }
         }
 
-        // 6. رسم جدول الفواتير
+        // إلغاء الاعتماد من داخل مودال الفاتورة
+        function revokeApprovalFromModal() {
+            if (currentActiveOrder) {
+                revokeApproval(currentActiveOrder.id_web_order);
+            }
+        }
+
+        // 6. حذف الطلب نهائياً
+        async function deleteOrder(orderId) {
+            if (!confirm(`هل أنت تأكد من حذف الفاتورة #${orderId} نهائياً؟`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('web_orders')
+                    .delete()
+                    .eq('id_web_order', orderId);
+
+                if (error) throw error;
+
+                approvedInvoices = approvedInvoices.filter(o => o.id_web_order !== orderId);
+                filterInvoices();
+                alert(`تم حذف الفاتورة #${orderId} بنجاح.`);
+            } catch (err) {
+                alert("فشل حذف الفاتورة: " + err.message);
+            }
+        }
+
+        // 7. رسم جدول الفواتير
         function renderOrders(orders) {
             const tbody = document.getElementById('invoicesTableBody');
             const mobileList = document.getElementById('mobileInvoicesList');
@@ -323,10 +367,10 @@
 
                     <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100">
                         <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 rounded-xl text-[11px] text-center transition shadow-sm">
-                            🖨️ معاينة/طباعة
+                            🖨️ طباعة
                         </button>
                         <button onclick="revokeApproval(${order.id_web_order})" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            ↩️ إلغاء اعتماد
+                            ↩️ إرجاع للآدمين
                         </button>
                         <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
                             🗑️ حذف
@@ -361,8 +405,8 @@
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
                     <td class="p-4">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition shadow-sm">🖨️ عرض الفاتورة</button>
-                            <button onclick="revokeApproval(${order.id_web_order})" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-1.5 px-2 rounded-lg text-xs transition">↩️ إلغاء</button>
+                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition shadow-sm">🖨️ الفاتورة</button>
+                            <button onclick="revokeApproval(${order.id_web_order})" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-1.5 px-2 rounded-lg text-xs transition" title="إلغاء الاعتماد والعودة للـ Admin">↩️ إرجاع</button>
                             <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-2 rounded-lg text-xs transition">🗑️</button>
                         </div>
                     </td>
@@ -373,7 +417,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 7. حساب العمولة
+        // 8. حساب العمولة
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -396,7 +440,7 @@
             return totalCommission;
         }
 
-        // 8. معاينة الفاتورة
+        // 9. معاينة الفاتورة
         function openInvoiceModal(orderId) {
             const order = approvedInvoices.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -514,7 +558,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 9. مشاركة الفاتورة
+        // 10. مشاركة الفاتورة عبر الواتساب
         function buildShareText(order, commission) {
             const mName = order.custom_marketer_name || 'غير مسجل';
             const mBank = order.custom_bank_name || 'غير مسجل';
@@ -553,39 +597,21 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
+        // 11. نسخ نص الفاتورة
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
-            const text = buildShareText(currentActiveOrder, realCommission);
-            
-            navigator.clipboard.writeText(text).then(() => {
-                alert("تم نسخ النص بنجاح!");
-            }).catch(() => alert("تعذر النسخ"));
+            const messageText = buildShareText(currentActiveOrder, realCommission);
+
+            navigator.clipboard.writeText(messageText).then(() => {
+                alert("تم نسخ نص الفاتورة بنجاح 📋");
+            }).catch(err => {
+                alert("تعذر النسخ: " + err);
+            });
         }
 
-        async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في حذف الفاتورة رقم #${orderId} نهائياً؟`)) return;
-
-            try {
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
-
-                if (error) throw error;
-                
-                const savedExtra = getSavedExtraData();
-                delete savedExtra[orderId];
-                saveExtraData(savedExtra);
-
-                alert('تم حذف الفاتورة بنجاح');
-                fetchApprovedInvoices();
-
-            } catch (err) {
-                console.error("خطأ الحذف:", err);
-                alert("تعذر الحذف: " + (err.message || JSON.stringify(err)));
-            }
-        }
-
-        window.onload = fetchApprovedInvoices;
+        // جلب البيانات أول مرة عند تحميل الصفحة
+        window.addEventListener('DOMContentLoaded', fetchApprovedInvoices);
     </script>
 </body>
 </html>
