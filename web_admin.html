@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة الطلبات - تعديل المنتجات والعميل</title>
+    <title>إدارة الطلبات - تعديل المنتجات</title>
     <script>
         window.tailwind = { config: { suppressDeprecationWarnings: true } };
     </script>
@@ -39,14 +39,13 @@
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">اسم العميل</th>
                             <th class="p-4">الهاتف</th>
-                            <th class="p-4">عدد المنتجات</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="5" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -129,34 +128,28 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let globalOrders = [];
-        let editingOrder = null; // النسخة التي يجري تعديلها حالياً
+        let editingOrder = null;
 
-        // 1. جلب الطلبات مع تفاصيل منتجاتها
+        // 1. جلب الطلبات فقط بدون استخدام العلاقات المباشرة المقعدة
         async function fetchOrders() {
             try {
                 const { data, error } = await supabaseClient
                     .from('web_orders')
-                    .select(`
-                        *,
-                        web_order_details (
-                            id_web_order_details,
-                            id_web_order,
-                            product_name,
-                            qte,
-                            price,
-                            amount
-                        )
-                    `)
+                    .select('*')
                     .order('date_created', { ascending: false });
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Supabase Error Details:", error);
+                    alert("خطأ Supabase: " + (error.message || error.details || JSON.stringify(error)));
+                    return;
+                }
 
                 globalOrders = data || [];
                 renderOrdersTable();
 
             } catch (err) {
-                console.error("خطأ عند جلب الطلبات:", err);
-                alert("فشل جلب البيانات: " + err.message);
+                console.error("Catch Exception:", err);
+                alert("خطأ في الاتصال: " + (err.message || JSON.stringify(err)));
             }
         }
 
@@ -165,25 +158,23 @@
             const tbody = document.getElementById('ordersTableBody');
 
             if (!globalOrders || globalOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400 font-semibold">لا توجد طلبات للعرض</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-8 text-gray-400 font-semibold">لا توجد طلبات للعرض</td></tr>`;
                 return;
             }
 
             let html = '';
             globalOrders.forEach(order => {
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const itemsCount = order.web_order_details ? order.web_order_details.length : 0;
                 
                 html += `
                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
                     <td class="p-4 font-bold text-gray-800">${order.client_name || 'بدون اسم'}</td>
                     <td class="p-4 text-emerald-600 font-semibold dir-ltr text-right">${order.client_phone || '-'}</td>
-                    <td class="p-4 text-slate-600 font-semibold">${itemsCount} منتج/منتجات</td>
                     <td class="p-4 font-black text-blue-600">${total} ج.س</td>
                     <td class="p-4 text-center">
                         <button onclick="openEditModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                            ✏️ تعديل كامل الطلب
+                            ✏️ تعديل المنتجات والعميل
                         </button>
                     </td>
                 </tr>`;
@@ -192,14 +183,13 @@
             tbody.innerHTML = html;
         }
 
-        // 3. فتح النافذة وبناء قائمة المنتجات
-        function openEditModal(orderId) {
+        // 3. فتح النافذة وجلب منتجات الطلب المختار بشكل مستقل
+        async function openEditModal(orderId) {
             const originalOrder = globalOrders.find(o => o.id_web_order === orderId);
             if (!originalOrder) return;
 
-            // عمل نسخة مستقلة لتجنب تعديل البيانات مباشرة قبل الحفظ
             editingOrder = JSON.parse(JSON.stringify(originalOrder));
-            if (!editingOrder.web_order_details) editingOrder.web_order_details = [];
+            editingOrder.web_order_details = [];
 
             document.getElementById('modalOrderId').textContent = `#${editingOrder.id_web_order}`;
             document.getElementById('inputClientName').value = editingOrder.client_name || '';
@@ -207,16 +197,32 @@
             document.getElementById('inputClientSecondPhone').value = editingOrder.client_second_phone || '';
             document.getElementById('inputClientAddress').value = editingOrder.client_address || '';
 
+            // جلب منتجات هذا الطلب تحديداً عبر الاستعلام المباشر بـ id_web_order
+            try {
+                const { data: details, error } = await supabaseClient
+                    .from('web_order_details')
+                    .select('*')
+                    .eq('id_web_order', orderId);
+
+                if (error) {
+                    console.error("خطأ جلب المنتجات:", error);
+                } else if (details) {
+                    editingOrder.web_order_details = details;
+                }
+            } catch (e) {
+                console.error("خطأ عند تحميل منتجات الطلب:", e);
+            }
+
             renderProductsList();
             document.getElementById('editOrderModal').classList.remove('hidden');
         }
 
-        // 4. رسم قائمة المنتجات داخل Modal وحساب الإجمالي
+        // 4. رسم قائمة المنتجات
         function renderProductsList() {
             const container = document.getElementById('productsListContainer');
             let totalAmount = 0;
 
-            if (editingOrder.web_order_details.length === 0) {
+            if (!editingOrder.web_order_details || editingOrder.web_order_details.length === 0) {
                 container.innerHTML = `<p class="text-center text-gray-400 text-xs py-3 border border-dashed rounded-xl">لا توجد منتجات بالطلب حالياً</p>`;
             } else {
                 let html = '';
@@ -263,7 +269,6 @@
             document.getElementById('calculatedTotalAmount').textContent = totalAmount.toFixed(2) + ' ج.س';
         }
 
-        // 5. تحديث حقلي الكمية أو السعر أو اسم المنتج ديناميكياً
         function updateProductField(index, field, value) {
             if (!editingOrder || !editingOrder.web_order_details[index]) return;
 
@@ -276,9 +281,9 @@
             renderProductsList();
         }
 
-        // 6. إضافة سطر منتج جديد
         function addNewProductRow() {
             if (!editingOrder) return;
+            if (!editingOrder.web_order_details) editingOrder.web_order_details = [];
             editingOrder.web_order_details.push({
                 product_name: "منتج جديد",
                 qte: 1,
@@ -288,14 +293,13 @@
             renderProductsList();
         }
 
-        // 7. حذف سطر منتج
         function removeProductRow(index) {
             if (!editingOrder) return;
             editingOrder.web_order_details.splice(index, 1);
             renderProductsList();
         }
 
-        // 8. حفظ تعديلات العميل والمنتجات في Supabase
+        // 5. حفظ التعديلات
         async function saveOrderAndProducts() {
             if (!editingOrder) return;
 
@@ -318,7 +322,7 @@
 
                 if (orderErr) throw orderErr;
 
-                // 2) حذف كافة تفاصيل المنتجات القديمة للطلب
+                // 2) حذف المنتجات القديمة للطلب
                 const { error: deleteErr } = await supabaseClient
                     .from('web_order_details')
                     .delete()
@@ -326,8 +330,8 @@
 
                 if (deleteErr) throw deleteErr;
 
-                // 3) إدخال المنتجات المعدلة من جديد (بدون جلب حقول غير معروفة)
-                if (editingOrder.web_order_details.length > 0) {
+                // 3) إدخال المنتجات المعدلة
+                if (editingOrder.web_order_details && editingOrder.web_order_details.length > 0) {
                     const rowsToInsert = editingOrder.web_order_details.map(item => ({
                         id_web_order: editingOrder.id_web_order,
                         product_name: item.product_name,
@@ -349,7 +353,7 @@
 
             } catch (err) {
                 console.error("خطأ أثناء حفظ التعديلات:", err);
-                alert('❌ تعذر الحفظ: ' + err.message);
+                alert('❌ تعذر الحفظ: ' + (err.message || JSON.stringify(err)));
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = '💾 حفظ كافة التعديلات';
