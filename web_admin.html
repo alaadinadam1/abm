@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -108,10 +107,11 @@
     </div>
 
     <script>
-        const supabaseClient = supabase.createClient(
-            "https://ihlwkwiimimoiplfqcdk.supabase.co",
-            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
-        );
+        // تنبيه: يرجى وضع المفتاح الخاص بـ Supabase (Anon Key الذي يبدأ عادة بـ eyJ...) هنا
+        const SUPABASE_URL = "https://ihlwkwiimimoiplfqcdk.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"; 
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let globalOrders = [];
         let currentActiveOrder = null;
@@ -131,6 +131,7 @@
                         date_created,
                         id_user,
                         tb_users:id_user (
+                            id,
                             username,
                             fullname,
                             bank_account
@@ -170,4 +171,54 @@
 
             if (!orders || orders.length === 0) {
                 const emptyHtml = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مسجلة حالياً.</div>`;
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-4
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                mobileList.innerHTML = emptyHtml;
+                return;
+            }
+
+            let tableHtml = '';
+            let cardsHtml = '';
+
+            orders.forEach(order => {
+                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+                const total = Number(order.total_amount || 0).toFixed(2);
+
+                cardsHtml += `
+                <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                        <span class="font-black text-slate-900 text-sm">طلب #${order.id_web_order}</span>
+                        <span class="text-blue-600 font-extrabold text-sm">${total} ج.س</span>
+                    </div>
+                    
+                    <div class="text-xs space-y-1">
+                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
+                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
+                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
+                        <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
+                        <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2 px-3 rounded-xl text-xs text-center transition">
+                            👁️ عرض الفاتورة
+                        </button>
+                        <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-3 rounded-xl text-xs text-center transition">
+                            🗑️ حذف
+                        </button>
+                    </div>
+                </div>`;
+
+                tableHtml += `
+                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
+                    <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
+                    <td class="p-4">
+                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
+                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
+                        <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
+                    </td>
+                    <td class="p-4 text-xs font-medium text-gray-600">${order.client_address || 'لم يحدد'}</td>
+                    <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
+                    <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
+                    <td class="p-4">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">👁️ عرض</button>
