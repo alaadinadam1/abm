@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة طلبات وفواتير الموقع</title>
+    <title>إدارة طلبات الموقع</title>
     <!-- إغلاق تحذيرات Tailwind CDN -->
     <script>
         window.tailwind = { config: { suppressDeprecationWarnings: true } };
@@ -47,16 +47,6 @@
                     🔄 <span class="hidden sm:inline">تحديث البيانات</span>
                 </button>
             </div>
-        </div>
-
-        <!-- أزرار التبويب للتنقل بين الصفحات -->
-        <div class="flex bg-gray-200/80 p-1.5 rounded-2xl max-w-md mx-auto sm:mx-0 font-bold text-xs">
-            <button id="tabPending" onclick="switchTab('pending')" class="flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm">
-                ⏳ الطلبات المعلقة <span id="pendingBadge" class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] mr-1">0</span>
-            </button>
-            <button id="tabApproved" onclick="switchTab('approved')" class="flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900">
-                📜 الفواتير المعتمدة <span id="approvedBadge" class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] mr-1">0</span>
-            </button>
         </div>
 
         <!-- عرض كروت الجوال -->
@@ -117,7 +107,7 @@
                     <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         📋 نسخ
                     </button>
-                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-4 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
                         🖨️ طباعة
                     </button>
                 </div>
@@ -134,7 +124,6 @@
 
         let globalOrders = [];
         let currentActiveOrder = null;
-        let currentTab = 'pending'; // 'pending' أو 'approved'
 
         // إدارة التخزين المحلي
         function getSavedExtraData() {
@@ -197,49 +186,18 @@
             }
         }
 
-        // 2. التبديل بين التبويبات
-        function switchTab(tab) {
-            currentTab = tab;
-            
-            const btnPending = document.getElementById('tabPending');
-            const btnApproved = document.getElementById('tabApproved');
-            
-            if (tab === 'pending') {
-                btnPending.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm";
-                btnApproved.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900";
-                document.getElementById('pageTitle').textContent = "📦 الطلبات المعلقة (قيد الانتظار)";
-                document.getElementById('pageSubTitle').textContent = "الطلبات الجديدة التي تنتظر المراجعة والاعتماد";
-                document.getElementById('totalLabel').textContent = "إجمالي الطلبات المعلقة";
-            } else {
-                btnApproved.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm";
-                btnPending.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900";
-                document.getElementById('pageTitle').textContent = "📜 الفواتير المعتمدة";
-                document.getElementById('pageSubTitle').textContent = "سجل الفواتير التي تم اعتمادها وجاهزة للطباعة والتعامل";
-                document.getElementById('totalLabel').textContent = "إجمالي الفواتير المعتمدة";
-            }
-
-            renderUI();
-        }
-
-        // 3. تحديث واجهة المستخدم بناءً على التبويب الحالي
+        // 2. تحديث واجهة المستخدم (عرض الطلبات المعلقة فقط)
         function renderUI() {
             const pendingOrders = globalOrders.filter(o => !o.is_approved);
-            const approvedOrders = globalOrders.filter(o => !!o.is_approved);
 
-            // تحديث عداد الشارات (Badges)
-            document.getElementById('pendingBadge').textContent = pendingOrders.length;
-            document.getElementById('approvedBadge').textContent = approvedOrders.length;
-
-            const activeList = currentTab === 'pending' ? pendingOrders : approvedOrders;
-
-            // حساب الإجمالي للصفحة الحالية
-            const grandTotal = activeList.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+            // حساب الإجمالي للطلبات المعلقة
+            const grandTotal = pendingOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
             document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
 
-            renderOrders(activeList);
+            renderOrders(pendingOrders);
         }
 
-        // 4. تحديث بيانات المسوق
+        // 3. تحديث بيانات المسوق
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -256,7 +214,7 @@
             }
         }
 
-        // 5. اعتماد أو إلغاء اعتماد الطلب (الانتقال التلقائي بين القوائم)
+        // 4. اعتماد الطلب (سيختفي فوراً من هذه القائمة ويذهب لصفحة الفواتير المعتمدة)
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -270,11 +228,11 @@
             savedExtra[orderId].isApproved = newApprovedState;
             saveExtraData(savedExtra);
 
-            // تحديث الواجهة فوراً ليختفي الطلب ويذهب للقسم المناسب
+            // تحديث الواجهة فوراً ليختفي الطلب المعتمد من القائمة
             renderUI();
 
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
-                openInvoiceModal(orderId);
+                closeInvoiceModal();
             }
 
             // تحديث السيرفر
@@ -288,16 +246,13 @@
             }
         }
 
-        // 6. رسم جدول الطلبات والكروت
+        // 5. رسم جدول الطلبات والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
 
             if (!orders || orders.length === 0) {
-                const emptyMsg = currentTab === 'pending' 
-                    ? 'لا توجد طلبات معلقة حالياً 🎉' 
-                    : 'لا توجد فواتير معتمدة حتى الآن 📜';
-
+                const emptyMsg = 'لا توجد طلبات معلقة حالياً 🎉';
                 tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
                 mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
                 return;
@@ -310,16 +265,9 @@
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
                 
-                const isApproved = !!order.is_approved;
-                const statusBadge = isApproved 
-                    ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`
-                    : `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
-
-                const approveBtnClass = isApproved
-                    ? `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`
-                    : `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
-
-                const approveBtnText = isApproved ? `↩️ إلغاء الاعتماد` : `✅ اعتماد الفاتورة`;
+                const statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
+                const approveBtnClass = `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
+                const approveBtnText = `✅ اعتماد الفاتورة`;
 
                 // كروت الشاشات الصغيرة (الجوال)
                 cardsHtml += `
@@ -407,224 +355,12 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 7. حساب العمولة
-        function getRealCommission(order) {
-            let totalCommission = 0;
-            if (!order || !order.web_order_details) return 0;
-
-            order.web_order_details.forEach(item => {
-                const quantity = Number(item.qte || 1);
-                let unitCommission = 0;
-
-                if (item.products) {
-                    if (Array.isArray(item.products) && item.products.length > 0) {
-                        unitCommission = Number(item.products[0].commission || 0);
-                    } else if (typeof item.products === 'object') {
-                        unitCommission = Number(item.products.commission || 0);
-                    }
-                }
-
-                totalCommission += (unitCommission * quantity);
-            });
-
-            return totalCommission;
-        }
-
-        // 8. فتح الفاتورة المعاينة
-        function openInvoiceModal(orderId) {
-            const order = globalOrders.find(o => o.id_web_order === orderId);
-            if (!order) return;
-
-            currentActiveOrder = order;
-            const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
-            const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
-
-            let itemsRows = '';
-            const realCommission = getRealCommission(order);
-
-            if (order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach(item => {
-                    const itemTotal = item.amount || ((item.qte || 0) * (item.price || 0));
-
-                    itemsRows += `
-                        <tr class="border-b border-gray-100 text-xs text-gray-700">
-                            <td class="py-2.5 text-right font-semibold text-gray-800">${item.product_name || '-'}</td>
-                            <td class="py-2.5 text-center font-bold text-gray-500">${item.qte || 0}</td>
-                            <td class="py-2.5 text-center font-medium text-gray-500">${Number(item.price || 0).toFixed(2)}</td>
-                            <td class="py-2.5 text-left font-extrabold text-gray-900">${Number(itemTotal).toFixed(2)}</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                itemsRows = `<tr><td colspan="4" class="py-6 text-center text-gray-400 text-xs">لا توجد منتجات مسجلة لهذا الطلب</td></tr>`;
-            }
-
-            const invoiceStatusBadge = order.is_approved 
-                ? `<span class="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full mb-1">✅ فاتورة معتمدة</span>`
-                : `<span class="inline-block bg-amber-50 text-amber-700 border border-amber-200 text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full mb-1">⏳ قيد الانتظار</span>`;
-
-            const invoiceHtml = `
-                <div id="printableInvoice" class="space-y-4 sm:space-y-6">
-                    <div class="flex justify-between items-start border-b border-gray-100 pb-4">
-                        <div>
-                            <div class="flex items-center gap-1.5">
-                                <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs">S</div>
-                                <span class="text-[10px] sm:text-xs font-bold text-gray-400">فاتورة مبيعات</span>
-                            </div>
-                            <h2 class="text-xl sm:text-2xl font-black text-gray-900 mt-1">طلب #${order.id_web_order}</h2>
-                        </div>
-                        <div class="text-left">
-                            ${invoiceStatusBadge}
-                            <div class="text-[10px] sm:text-[11px] font-bold text-gray-500">${date}</div>
-                            <div class="text-[9px] font-medium text-gray-400 dir-ltr">${time}</div>
-                        </div>
-                    </div>
-
-                    <!-- بيانات العميل -->
-                    <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 text-xs space-y-1.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">بيانات العميل</span>
-                            <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
-                        </div>
-                        <div class="h-px bg-slate-200/60 my-1"></div>
-                        <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
-                            <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
-                        </div>
-                    </div>
-
-                    <!-- بيانات المسوق والبنك -->
-                    <div class="bg-indigo-50/70 p-3 sm:p-4 rounded-xl border border-indigo-100 text-xs space-y-1.5">
-                        <div class="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">بيانات المسوق والتحويل البنكي</div>
-                        <div class="flex justify-between items-center text-slate-700 pt-1">
-                            <span class="font-medium">اسم المسوق:</span>
-                            <span class="font-bold text-indigo-950">${order.custom_marketer_name || 'غير محدد'}</span>
-                        </div>
-                        <div class="flex justify-between items-center text-slate-700">
-                            <span class="font-medium">اسم البنك:</span>
-                            <span class="font-bold text-slate-800">${order.custom_bank_name || 'غير محدد'}</span>
-                        </div>
-                        <div class="flex justify-between items-center text-slate-700">
-                            <span class="font-medium">رقم الحساب البنكي:</span>
-                            <span class="font-bold text-indigo-700 dir-ltr tracking-wide">${order.custom_marketer_account || 'غير محدد'}</span>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full border-collapse">
-                            <thead>
-                                <tr class="border-b border-gray-200 text-gray-400 font-bold uppercase text-[9px] sm:text-[10px]">
-                                    <th class="py-1.5 text-right">المنتج</th>
-                                    <th class="py-1.5 text-center">الكمية</th>
-                                    <th class="py-1.5 text-center">السعر</th>
-                                    <th class="py-1.5 text-left">الإجمالي</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-50">
-                                ${itemsRows}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="pt-3 border-t border-gray-100 space-y-2">
-                        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3.5 sm:p-4 rounded-xl flex justify-between items-center shadow-md">
-                            <div>
-                                <span class="text-[9px] font-bold opacity-80 uppercase block">المبلغ الإجمالي</span>
-                                <span class="text-xl sm:text-2xl font-black">${Number(order.total_amount || 0).toFixed(2)} <span class="text-xs font-normal">ج.س</span></span>
-                            </div>
-                            <span class="text-[10px] bg-white/20 px-2.5 py-1 rounded-md font-semibold">${order.is_approved ? 'فاتورة معتمدة' : 'قيد الانتظار'}</span>
-                        </div>
-
-                        <div class="flex justify-between items-center px-2 text-xs font-semibold text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
-                            <span>إجمالي العمولة المستحقة:</span>
-                            <span class="font-black text-emerald-600 text-sm">${realCommission.toFixed(2)} ج.س</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.getElementById('modalInvoiceCard').innerHTML = invoiceHtml;
-            document.getElementById('invoiceModal').classList.remove('hidden');
-        }
-
+        // إغلاق نافذة الفاتورة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 9. بناء نص المشاركة
-        function buildShareText(order, commission) {
-            const mName = order.custom_marketer_name || 'غير مسجل';
-            const mBank = order.custom_bank_name || 'غير مسجل';
-            const mAccount = order.custom_marketer_account || 'غير مسجل';
-            const statusStr = order.is_approved ? '✅ معتمدة' : '⏳ قيد الانتظار';
-
-            let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
-            text += `📌 *الحالة:* ${statusStr}\n`;
-            text += `👤 *العميل:* ${order.client_name || '-'}\n`;
-            text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
-            text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
-            text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
-            text += `------------------------------\n`;
-            text += `👨‍💼 *المسوق:* ${mName}\n`;
-            text += `🏦 *البنك:* ${mBank}\n`;
-            text += `💳 *رقم الحساب:* ${mAccount}\n`;
-            text += `------------------------------\n`;
-            text += `🛒 *المنتجات:*\n`;
-
-            if (order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach(item => {
-                    text += `• ${item.product_name} (${item.qte} × ${item.price}) = ${item.amount || (item.qte * item.price)} ج.س\n`;
-                });
-            }
-
-            text += `------------------------------\n`;
-            text += `💰 *الإجمالي النهائي:* ${Number(order.total_amount || 0).toFixed(2)} ج.س\n`;
-            text += `💵 *العمولة المستحقة:* ${Number(commission).toFixed(2)} ج.س\n`;
-            return text;
-        }
-
-        function sendToWhatsappDirectly() {
-            if (!currentActiveOrder) return;
-            const realCommission = getRealCommission(currentActiveOrder);
-            const messageText = buildShareText(currentActiveOrder, realCommission);
-            const encodedText = encodeURIComponent(messageText);
-            
-            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
-        }
-
-        function copyInvoiceText() {
-            if (!currentActiveOrder) return;
-            const realCommission = getRealCommission(currentActiveOrder);
-            const text = buildShareText(currentActiveOrder, realCommission);
-            
-            navigator.clipboard.writeText(text).then(() => {
-                alert("تم نسخ النص بنجاح!");
-            }).catch(() => alert("تعذر النسخ"));
-        }
-
-        async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
-
-            try {
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
-
-                if (error) throw error;
-                
-                const savedExtra = getSavedExtraData();
-                delete savedExtra[orderId];
-                saveExtraData(savedExtra);
-
-                alert('تم حذف الطلب بنجاح');
-                fetchOrders();
-
-            } catch (err) {
-                console.error("خطأ الحذف:", err);
-                alert("تعذر حذف الطلب: " + (err.message || JSON.stringify(err)));
-            }
-        }
-
+        // تشغيل الجلب التلقائي عند تحميل الصفحة
         window.onload = fetchOrders;
     </script>
 </body>
