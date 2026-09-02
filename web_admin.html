@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>إدارة طلبات الموقع</title>
-    <!-- إغلاق تحذيرات Tailwind CDN -->
-    <script>
-        window.tailwind = { config: { suppressDeprecationWarnings: true } };
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- استخدام Tailwind Play CDN المخصص للتطوير بدون تحذيرات Console -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -81,12 +78,12 @@
 
     <!-- النافذة المنبثقة للتعديل والمعاينة Edit & Invoice Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
+        <div class="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100">
             
             <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
                 <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <h3 class="font-bold text-xs sm:text-sm tracking-wide">تعديل بيانات الطلب والمعاينة</h3>
+                    <h3 class="font-bold text-xs sm:text-sm tracking-wide">تعديل بيانات العميل والمنتجات</h3>
                 </div>
                 <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-base transition active:scale-95">✕</button>
             </div>
@@ -138,7 +135,7 @@
             }
         }
 
-        // 1. جلب الطلبات بطلب مبسط لتفادي أخطاء الربط الخارجية
+        // 1. جلب الطلبات مع تبسيط الاستعلام لتجنب أخطاء المفاتيح الأجنبية
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -156,7 +153,10 @@
                     `)
                     .order('date_created', { ascending: false });
 
-                if (error) throw error;
+                if (error) {
+                    console.error("تفاصيل خطأ Supabase:", error);
+                    throw new Error(error.message || error.details || "فشل الاتصال بقاعدة البيانات");
+                }
 
                 const savedExtra = getSavedExtraData();
                 globalOrders = orders || [];
@@ -173,7 +173,7 @@
 
             } catch (err) {
                 console.error("خطأ عند جلب الطلبات:", err);
-                alert("فشل جلب البيانات: " + (err.message || JSON.stringify(err)));
+                alert("فشل جلب البيانات: " + err.message);
             }
         }
 
@@ -336,6 +336,8 @@
             if (!order) return;
 
             currentActiveOrder = JSON.parse(JSON.stringify(order));
+            if(!currentActiveOrder.web_order_details) currentActiveOrder.web_order_details = [];
+
             renderModalContent();
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
@@ -373,7 +375,7 @@
                                 oninput="updateItemField(${index}, 'price', this.value)"
                                 class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-center focus:ring-1 focus:ring-blue-500 bg-white">
                         </div>
-                        <div class="w-28 text-center sm:text-right pt-2 sm:pt-0">
+                        <div class="w-24 text-center sm:text-right pt-2 sm:pt-0">
                             <span class="block text-[10px] font-bold text-gray-400">الإجمالي</span>
                             <span class="text-xs font-black text-blue-600">${lineAmount.toFixed(2)}</span>
                         </div>
@@ -385,15 +387,16 @@
                     </div>`;
                 });
             } else {
-                detailsHtml = `<p class="text-center text-gray-400 text-xs py-2">لا توجد منتجات بالطلب</p>`;
+                detailsHtml = `<p class="text-center text-gray-400 text-xs py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">لا توجد منتجات بالطلب حالياً</p>`;
             }
 
             order.total_amount = calcTotal;
 
             modalContent.innerHTML = `
             <div id="printableInvoice" class="space-y-6">
+                <!-- قسم بيانات العميل قابلة للتعديل المباشر -->
                 <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                    <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-200 pb-2">👤 تعديل بيانات العميل</h4>
+                    <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-200 pb-2">👤 بيانات العميل (قابل للتعديل)</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-gray-600 mb-1">اسم العميل:</label>
@@ -422,11 +425,12 @@
                     </div>
                 </div>
 
+                <!-- قسم المنتجات -->
                 <div class="space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-200 pb-2">
                         <h4 class="font-extrabold text-sm text-slate-800">🛍️ المنتجات بالطلب</h4>
-                        <button onclick="addNewItemToOrder()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition">
-                            ➕ إضافة منتج
+                        <button onclick="addNewItemToOrder()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition active:scale-95">
+                            ➕ إضافة منتج جديد
                         </button>
                     </div>
 
@@ -474,7 +478,7 @@
             renderModalContent();
         }
 
-        // 7. حفظ التعديلات وإدراجها مع تجنب المشاكل الحقلية
+        // 2. الحفظ المعتمد والموثوق للتعديلات
         async function saveOrderDetailsChanges() {
             if (!currentActiveOrder) return;
 
@@ -491,31 +495,32 @@
                     })
                     .eq('id_web_order', currentActiveOrder.id_web_order);
 
-                if (orderErr) throw orderErr;
+                if (orderErr) throw new Error("خطأ تحديث العميل: " + orderErr.message);
 
-                // ب) حذف تفاصيل المنتجات القائمة
+                // ب) مسح التفاصيل القديمة بأمان
                 const { error: deleteErr } = await supabaseClient
                     .from('web_order_details')
                     .delete()
                     .eq('id_web_order', currentActiveOrder.id_web_order);
 
-                if (deleteErr) throw deleteErr;
+                if (deleteErr) throw new Error("خطأ تحديث المنتجات: " + deleteErr.message);
 
-                // ج) إعادة إدراج التفاصيل المعدلة
+                // ج) إضافة التفاصيل الجديدة
                 if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
                     const newDetails = currentActiveOrder.web_order_details.map(item => ({
                         id_web_order: currentActiveOrder.id_web_order,
+                        id_product: item.id_product || null,
                         product_name: item.product_name,
                         qte: item.qte,
                         price: item.price,
-                        amount: item.amount
+                        amount: (Number(item.qte) || 0) * (Number(item.price) || 0)
                     }));
 
                     const { error: insertErr } = await supabaseClient
                         .from('web_order_details')
                         .insert(newDetails);
 
-                    if (insertErr) throw insertErr;
+                    if (insertErr) throw new Error("خطأ إضافة المنتجات: " + insertErr.message);
                 }
 
                 alert("تم حفظ التعديلات بنجاح 🎉");
@@ -523,8 +528,8 @@
                 fetchOrders();
 
             } catch (err) {
-                console.error("خطأ أثناء حفظ التعديلات:", err);
-                alert("تعذر حفظ التعديلات: " + (err.message || JSON.stringify(err)));
+                console.error("خطأ الحفظ:", err);
+                alert("تعذر الحفظ: " + err.message);
             }
         }
 
