@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -145,6 +144,7 @@
 
         async function fetchApprovedInvoices() {
             try {
+                // جلب الطلبات
                 const { data: orders, error: ordersError } = await supabaseClient
                     .from('web_orders')
                     .select('*')
@@ -156,6 +156,8 @@
 
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
+                    
+                    // جلب تفاصيل الطلبات والمنتجات
                     const { data: details } = await supabaseClient
                         .from('web_order_details')
                         .select('*')
@@ -167,8 +169,17 @@
                         detailsMap[d.id_web_order].push(d);
                     });
 
+                    // ربط التفاصيل بالطلبات وحساب العمولة الكلية من المنتجات
                     fetchedOrders.forEach(o => {
-                        o.web_order_details = detailsMap[o.id_web_order] || [];
+                        const orderDetails = detailsMap[o.id_web_order] || [];
+                        o.web_order_details = orderDetails;
+                        
+                        // حساب إجمالي العمولة (commission) من جدول التفاصيل
+                        let totalCommission = 0;
+                        orderDetails.forEach(item => {
+                            totalCommission += Number(item.commission || 0);
+                        });
+                        o.total_commission = totalCommission;
                     });
                 }
 
@@ -277,16 +288,19 @@
                 order.web_order_details.forEach(item => {
                     const price = Number(item.price || 0).toFixed(2);
                     const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    const itemComm = Number(item.commission || 0).toFixed(2);
+                    
                     detailsHtml += `
                     <tr class="border-b border-gray-100 text-xs">
                         <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
                         <td class="py-2 px-1 text-center">${item.qte || 1}</td>
                         <td class="py-2 px-1 text-center">${price}</td>
+                        <td class="py-2 px-1 text-center text-purple-600">${itemComm}</td>
                         <td class="py-2 px-1 text-left font-bold">${amount}</td>
                     </tr>`;
                 });
             } else {
-                detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
+                detailsHtml = `<tr><td colspan="5" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
             }
 
             modalBody.innerHTML = `
@@ -311,8 +325,8 @@
                         <span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
                     </div>
                     <div>
-                        <span class="text-gray-500 block text-[10px]">العمولة المستحقة:</span>
-                        <span class="font-bold text-purple-600 block">${order.commission ? order.commission + ' ج.س' : '0.00 ج.س'}</span>
+                        <span class="text-gray-500 block text-[10px]">إجمالي العمولة المستحقة:</span>
+                        <span class="font-bold text-purple-600 block">${Number(order.total_commission || 0).toFixed(2)} ج.س</span>
                     </div>
                     <div class="col-span-2">
                         <span class="text-gray-500 block text-[10px]">العنوان:</span>
@@ -335,6 +349,7 @@
                                 <th class="py-1.5 px-1">المنتج</th>
                                 <th class="py-1.5 px-1 text-center">الكمية</th>
                                 <th class="py-1.5 px-1 text-center">السعر</th>
+                                <th class="py-1.5 px-1 text-center">عمولة/م</th>
                                 <th class="py-1.5 px-1 text-left">المجموع</th>
                             </tr>
                         </thead>
@@ -362,7 +377,7 @@
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعمولة: ${currentActiveOrder.commission || '0'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعمولة: ${Number(currentActiveOrder.total_commission || 0).toFixed(2)} ج.س\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
@@ -385,7 +400,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const commissionVal = order.commission ? `${order.commission} ج.س` : '-';
+                const commissionVal = Number(order.total_commission || 0).toFixed(2) + ' ج.س';
                 
                 const statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`;
                 const approveBtnClass = `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`;
@@ -406,7 +421,7 @@
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 الأساسي: ${order.client_phone || '-'}</div>
                         <div class="text-indigo-600 dir-ltr text-right font-semibold">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
-                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة: ${commissionVal}</div>
+                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة المستحقة: ${commissionVal}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
