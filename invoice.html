@@ -61,7 +61,7 @@
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
-                            <th class="p-4">العميل والهاتف</th>
+                            <th class="p-4">العميل وأرقام الهواتف</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
                             <th class="p-4">العمولة المستحقة</th>
                             <th class="p-4">الحالة</th>
@@ -126,7 +126,6 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // إدارة التخزين المحلي
         function getSavedExtraData() {
             try {
                 return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
@@ -143,10 +142,9 @@
             }
         }
 
-        // 1. جلب الفواتير المعتمدة بأمان من السيرفر والذاكرة المحلية
         async function fetchApprovedInvoices() {
             try {
-                // جلب الطلبات الأساسية
+                // جلب الطلبات
                 const { data: orders, error: ordersError } = await supabaseClient
                     .from('web_orders')
                     .select('*')
@@ -156,9 +154,10 @@
 
                 let fetchedOrders = orders || [];
 
-                // جلب تفاصيل المنتجات لكل الطلبات
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
+                    
+                    // جلب تفاصيل الطلبات والمنتجات
                     const { data: details } = await supabaseClient
                         .from('web_order_details')
                         .select('*')
@@ -170,44 +169,51 @@
                         detailsMap[d.id_web_order].push(d);
                     });
 
+                    // ربط التفاصيل بالطلبات وحساب العمولة الكلية من المنتجات
                     fetchedOrders.forEach(o => {
-                        o.web_order_details = detailsMap[o.id_web_order] || [];
+                        const orderDetails = detailsMap[o.id_web_order] || [];
+                        o.web_order_details = orderDetails;
+                        
+                        // حساب إجمالي العمولة (commission) من جدول التفاصيل
+                        let totalCommission = 0;
+                        orderDetails.forEach(item => {
+                            totalCommission += Number(item.commission || 0);
+                        });
+                        o.total_commission = totalCommission;
                     });
                 }
 
                 const savedExtra = getSavedExtraData();
                 globalOrders = fetchedOrders;
 
-                // دمج البيانات المحفوظة محلياً
                 globalOrders.forEach(o => {
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
-                    o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
+                    
+                    if (extra.isApproved !== undefined) {
+                        o.is_approved = extra.isApproved;
+                    }
                 });
 
                 renderUI();
 
             } catch (err) {
-                console.error("خطأ عند جلب الفواتير المعتمدة:", err);
-                const errMsg = err.message || err.error_description || JSON.stringify(err);
-                alert("فشل جلب الفواتير المعتمدة: " + errMsg);
+                console.error("خطأ عند جلب الفواتير:", err);
+                alert("فشل جلب الفواتير: " + (err.message || JSON.stringify(err)));
             }
         }
 
-        // 2. تحديث واجهة المستخدم (عرض الفواتير المعتمدة فقط)
         function renderUI() {
-            const approvedOrders = globalOrders.filter(o => o.is_approved);
+            const approvedOrders = globalOrders.filter(o => o.is_approved === true);
 
-            // حساب إجمالي المبيعات المعتمدة
             const grandTotal = approvedOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
             document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
 
             renderOrders(approvedOrders);
         }
 
-        // 3. تحديث بيانات المسوق
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -224,7 +230,6 @@
             }
         }
 
-        // 4. إلغاء الاعتماد (إعادة الطلب لقائمة الانتظار)
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -232,33 +237,29 @@
             const newApprovedState = !order.is_approved;
             order.is_approved = newApprovedState;
 
-            // حفظ الحالة محلياً فوراً
             const savedExtra = getSavedExtraData();
             if (!savedExtra[orderId]) savedExtra[orderId] = {};
             savedExtra[orderId].isApproved = newApprovedState;
             saveExtraData(savedExtra);
 
-            // تحديث الواجهة فوراً
             renderUI();
 
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
                 closeInvoiceModal();
             }
 
-            // تحديث السيرفر
             try {
                 await supabaseClient
                     .from('web_orders')
                     .update({ is_approved: newApprovedState })
                     .eq('id_web_order', orderId);
             } catch (e) {
-                console.log("تم حفظ تغيير الحالة محلياً بنجاح.");
+                console.log("تم الحفظ محلياً.");
             }
         }
 
-        // 5. حذف فاتورة
         async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في حذف الفاتورة رقم #${orderId}؟`)) return;
+            if (!confirm(`هل أنت متأكد من رغبتك في حذف الفاتورة رقم #${orderId}؟`)) return;
 
             try {
                 await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
@@ -274,7 +275,6 @@
             }
         }
 
-        // 6. معاينة وفتح الفاتورة المعتمدة
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -288,16 +288,19 @@
                 order.web_order_details.forEach(item => {
                     const price = Number(item.price || 0).toFixed(2);
                     const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    const itemComm = Number(item.commission || 0).toFixed(2);
+                    
                     detailsHtml += `
                     <tr class="border-b border-gray-100 text-xs">
                         <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
                         <td class="py-2 px-1 text-center">${item.qte || 1}</td>
                         <td class="py-2 px-1 text-center">${price}</td>
+                        <td class="py-2 px-1 text-center text-purple-600">${itemComm}</td>
                         <td class="py-2 px-1 text-left font-bold">${amount}</td>
                     </tr>`;
                 });
             } else {
-                detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
+                detailsHtml = `<tr><td colspan="5" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
             }
 
             modalBody.innerHTML = `
@@ -314,8 +317,16 @@
                         <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
                     </div>
                     <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف:</span>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الأساسي:</span>
                         <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الثاني:</span>
+                        <span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">إجمالي العمولة المستحقة:</span>
+                        <span class="font-bold text-purple-600 block">${Number(order.total_commission || 0).toFixed(2)} ج.س</span>
                     </div>
                     <div class="col-span-2">
                         <span class="text-gray-500 block text-[10px]">العنوان:</span>
@@ -338,6 +349,7 @@
                                 <th class="py-1.5 px-1">المنتج</th>
                                 <th class="py-1.5 px-1 text-center">الكمية</th>
                                 <th class="py-1.5 px-1 text-center">السعر</th>
+                                <th class="py-1.5 px-1 text-center">عمولة/م</th>
                                 <th class="py-1.5 px-1 text-left">المجموع</th>
                             </tr>
                         </thead>
@@ -356,7 +368,6 @@
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
 
-        // 7. إرسال إلى واتساب
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
@@ -364,16 +375,14 @@
             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
-        // 8. نسخ نص الفاتورة
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعمولة: ${Number(currentActiveOrder.total_commission || 0).toFixed(2)} ج.س\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
         }
 
-        // 9. رسم جدول الفواتير والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -391,6 +400,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
+                const commissionVal = Number(order.total_commission || 0).toFixed(2) + ' ج.س';
                 
                 const statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`;
                 const approveBtnClass = `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`;
@@ -409,8 +419,9 @@
                     
                     <div class="text-xs space-y-1">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
+                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 الأساسي: ${order.client_phone || '-'}</div>
+                        <div class="text-indigo-600 dir-ltr text-right font-semibold">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
+                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة المستحقة: ${commissionVal}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
@@ -441,14 +452,14 @@
                     </div>
                 </div>`;
 
-                // جدول الكمبيوتر (تمت إضافة عمود العمولة المستحقة لتطابق بنية أعمدة جدول web_admin.html)
+                // جدول الكمبيوتر
                 tableHtml += `
                 <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
                     <td class="p-4">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
+                        <div class="text-indigo-600 text-xs dir-ltr font-semibold">📞 ${order.client_second_phone || 'لا يوجد'}</div>
                     </td>
                     <td class="p-4">
                         <div class="space-y-1.5">
@@ -463,7 +474,7 @@
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         </div>
                     </td>
-                    <td class="p-4 font-semibold text-indigo-600">-</td>
+                    <td class="p-4 font-bold text-purple-700">${commissionVal}</td>
                     <td class="p-4">${statusBadge}</td>
                     <td class="p-4 font-extrabold text-emerald-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
@@ -483,12 +494,10 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // إغلاق نافذة الفاتورة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // تشغيل الجلب التلقائي عند تحميل الصفحة
         window.onload = fetchApprovedInvoices;
     </script>
 </body>
