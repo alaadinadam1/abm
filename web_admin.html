@@ -26,6 +26,7 @@
 
     <div class="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         
+        <!-- شريط العنوان والبطاقات الإحصائية -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
                 <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 لوحة التحكم: إدارة الطلبات</h1>
@@ -44,10 +45,12 @@
             </div>
         </div>
 
+        <!-- عرض كروت الجوال -->
         <div id="mobileOrdersList" class="block md:hidden space-y-3">
             <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
         </div>
 
+        <!-- الجدول الرئيسي للكمبيوتر -->
         <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse text-xs md:text-sm">
@@ -71,6 +74,7 @@
         </div>
     </div>
 
+    <!-- النافذة المنبثقة للفاتورة Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
             
@@ -83,7 +87,8 @@
             </div>
 
             <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
-                </div>
+                <!-- محتوى الفاتورة -->
+            </div>
 
             <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
                 <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
@@ -115,10 +120,10 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات بآلية آمنة
+        // 1. جلب الطلبات بآلية آمنة مع جدول المسوقين
         async function fetchOrders() {
             try {
-                // أ) جلب جميع الطلبات تفصيلياً
+                // جلب جميع الطلبات
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
@@ -140,35 +145,32 @@
                 if (error) throw error;
                 globalOrders = orders || [];
 
-                // ب) تجميع كافة المعرفات المتاحة للمستخدمين
-                const rawUserIds = globalOrders.map(o => o.id_user).filter(id => id !== null && id !== undefined && id !== '');
-                const userIds = [...new Set(rawUserIds)];
+                // استخراج معرفات المسوقين لدعم الحقول المحتملة (id_marketer أو id_user)
+                const marketerIds = [...new Set(globalOrders.map(o => o.id_marketer || o.id_user).filter(Boolean))];
 
-                console.log("قائمة id_user للطلبات المجلوبة:", userIds);
+                let marketersMap = {};
 
-                let usersMap = {};
+                if (marketerIds.length > 0) {
+                    // جلب بيانات المسوقين من جدول Marketers
+                    const { data: marketersData, error: markErr } = await supabaseClient
+                        .from('Marketers')
+                        .select('id_marketer, marketer_name, marketer_phone, marketer_account')
+                        .in('id_marketer', marketerIds);
 
-                if (userIds.length > 0) {
-                    // جلب بيانات جميع المستخدمين دفعة واحدة
-                    const { data: usersData, error: usersErr } = await supabaseClient
-                        .from('tb_users')
-                        .select('id, username, fullname, bank_account')
-                        .in('id', userIds);
-
-                    if (usersErr) {
-                        console.error("خطأ عند جلب بيانات tb_users (غالباً RLS):", usersErr);
-                    } else if (usersData) {
-                        console.log("بيانات tb_users المجلوبة بنجاح:", usersData);
-                        usersData.forEach(u => {
-                            usersMap[String(u.id)] = u;
+                    if (!markErr && marketersData) {
+                        marketersData.forEach(m => {
+                            marketersMap[String(m.id_marketer)] = m;
                         });
+                    } else if (markErr) {
+                        console.error("خطأ جلب بيانات المسوقين:", markErr);
                     }
                 }
 
-                // ج) دمج بيانات المستخدم داخل كائن الطلب المقابل له
+                // ربط بيانات المسوقين داخل كائن الطلب
                 globalOrders.forEach(order => {
-                    if (order.id_user !== null && order.id_user !== undefined) {
-                        order.user_info = usersMap[String(order.id_user)] || null;
+                    const mId = order.id_marketer || order.id_user;
+                    if (mId && marketersMap[String(mId)]) {
+                        order.marketer_info = marketersMap[String(mId)];
                     }
                 });
 
@@ -178,7 +180,7 @@
                 renderOrders(globalOrders);
 
             } catch (err) {
-                console.error("تفاصيل الخطأ عند جلب الطلبات:", err);
+                console.error("تفاصيل الخطأ الدقيقة عند جلب الطلبات:", err);
                 const errMsg = err.message || err.error_description || JSON.stringify(err);
                 alert("فشل جلب البيانات: " + errMsg);
             }
@@ -275,14 +277,15 @@
             return totalCommission;
         }
 
-        // 4. استخراج بيانات المستخدم
-        function getUserInfo(order) {
-            const u = order.user_info;
-            if (!u) return { userName: 'غير مسجل', bankAccount: 'غير مسجل' };
+        // 4. استخراج بيانات المسوق المدمجة
+        function getMarketerInfo(order) {
+            const m = order.marketer_info;
+            if (!m) return { marketerName: 'غير مسجل', bankAccount: 'غير مسجل', phone: 'غير مسجل' };
             
             return {
-                userName: u.fullname || u.username || 'غير مسجل',
-                bankAccount: u.bank_account || 'غير مسجل'
+                marketerName: m.marketer_name || 'غير مسجل',
+                bankAccount: m.marketer_account || 'غير مسجل',
+                phone: m.marketer_phone || 'غير مسجل'
             };
         }
 
@@ -295,7 +298,7 @@
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
 
-            const { userName, bankAccount } = getUserInfo(order);
+            const { marketerName, bankAccount, phone } = getMarketerInfo(order);
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -347,11 +350,16 @@
                         </div>
                     </div>
 
+                    <!-- قسم بيانات المسوق البنكية -->
                     <div class="bg-indigo-50/70 p-3 sm:p-4 rounded-xl border border-indigo-100 text-xs space-y-1.5">
                         <div class="text-[10px] font-extrabold text-indigo-500 uppercase tracking-wider">بيانات المسوق والتحويل</div>
                         <div class="flex justify-between items-center text-slate-700">
                             <span class="font-medium">اسم المسوق:</span>
-                            <span class="font-bold text-indigo-950">${userName}</span>
+                            <span class="font-bold text-indigo-950">${marketerName}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-700">
+                            <span class="font-medium">رقم الهاتف:</span>
+                            <span class="font-bold text-slate-800 dir-ltr">${phone}</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-700">
                             <span class="font-medium">رقم الحساب البنكي:</span>
@@ -402,7 +410,7 @@
 
         // 6. تجهيز نص المشاركة
         function buildShareText(order, commission) {
-            const { userName, bankAccount } = getUserInfo(order);
+            const { marketerName, bankAccount, phone } = getMarketerInfo(order);
 
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
@@ -410,7 +418,8 @@
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
-            text += `👨‍💼 *المسوق:* ${userName}\n`;
+            text += `👨‍💼 *المسوق:* ${marketerName}\n`;
+            text += `📞 *هاتف المسوق:* ${phone}\n`;
             text += `💳 *الحساب البنكي:* ${bankAccount}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
