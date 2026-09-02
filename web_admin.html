@@ -42,6 +42,11 @@
                     <span id="totalLabel" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">إجمالي الطلبات المعلقة</span>
                     <span id="totalRevenue" class="text-lg sm:text-xl font-black text-blue-900">0.00 ج.س</span>
                 </div>
+
+                <div class="bg-amber-50 border border-amber-100 px-4 py-2 rounded-xl text-right flex-1 sm:flex-none">
+                    <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">إجمالي العمولات المستحقة</span>
+                    <span id="totalCommissions" class="text-lg sm:text-xl font-black text-amber-900">0.00 ج.س</span>
+                </div>
                 
                 <button onclick="fetchOrders()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
                     🔄 <span class="hidden sm:inline">تحديث البيانات</span>
@@ -63,9 +68,9 @@
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
-                            <th class="p-4">العمولة المستحقة</th>
                             <th class="p-4">الحالة</th>
                             <th class="p-4">المبلغ الإجمالي</th>
+                            <th class="p-4">العمولة الحقيقية</th>
                             <th class="p-4">تاريخ الطلب</th>
                             <th class="p-4 text-center">الخيارات</th>
                         </tr>
@@ -93,7 +98,7 @@
             </div>
 
             <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
-                <!-- محتوى الفاتورة -->
+                <!-- محتوى الفاتورة سيُبنى هنا برمجياً -->
             </div>
 
             <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
@@ -143,86 +148,49 @@
             }
         }
 
-        // 1. جلب الطلبات من قواعد البيانات مع جلب عمولة المنتج لحساب العمولة المستحقة
+        // 1. جلب الطلبات وحساب العمولة الحقيقية
         async function fetchOrders() {
             try {
-                // جلب الطلبات الأساسية
-                const { data: orders, error: ordersError } = await supabaseClient
+                const { data: orders, error } = await supabaseClient
                     .from('web_orders')
-                    .select('*')
+                    .select(`
+                        *,
+                        web_order_details (
+                            id_product,
+                            product_name,
+                            qte,
+                            price,
+                            amount,
+                            products (
+                                id_product,
+                                commission
+                            )
+                        )
+                    `)
                     .order('date_created', { ascending: false });
 
-                if (ordersError) throw ordersError;
-
-                let fetchedOrders = orders || [];
-
-                if (fetchedOrders.length > 0) {
-                    const orderIds = fetchedOrders.map(o => o.id_web_order);
-                    
-                    // جلب تفاصيل الطلب مع جلب حقل العمولة commission من جدول products
-                    const { data: details, error: detailsError } = await supabaseClient
-                        .from('web_order_details')
-                        .select('*, products(commission)')
-                        .in('id_web_order', orderIds);
-
-                    if (detailsError) {
-                        // محاولة بديلة إذا كان الربط العلاقات المباشر غير معرف بكود أجنبي صريح
-                        const { data: detailsFallback } = await supabaseClient
-                            .from('web_order_details')
-                            .select('*')
-                            .in('id_web_order', orderIds);
-
-                        const { data: products } = await supabaseClient
-                            .from('products')
-                            .select('id_product, commission');
-
-                        const productCommissionMap = {};
-                        (products || []).forEach(p => {
-                            productCommissionMap[p.id_product] = p.commission || 0;
-                        });
-
-                        const detailsMap = {};
-                        (detailsFallback || []).forEach(d => {
-                            d.item_commission = productCommissionMap[d.id_product] || 0;
-                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
-                            detailsMap[d.id_web_order].push(d);
-                        });
-
-                        fetchedOrders.forEach(o => {
-                            o.web_order_details = detailsMap[o.id_web_order] || [];
-                        });
-                    } else {
-                        const detailsMap = {};
-                        (details || []).forEach(d => {
-                            d.item_commission = d.products ? (d.products.commission || 0) : 0;
-                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
-                            detailsMap[d.id_web_order].push(d);
-                        });
-
-                        fetchedOrders.forEach(o => {
-                            o.web_order_details = detailsMap[o.id_web_order] || [];
-                        });
-                    }
-                }
+                if (error) throw error;
 
                 const savedExtra = getSavedExtraData();
-                globalOrders = fetchedOrders;
+                globalOrders = orders || [];
 
-                // احتساب العمولة المستحقة لجميع العناصر بالطلب
+                // حساب العمولة الحقيقية لكل طلب
                 globalOrders.forEach(o => {
-                    const calculatedCommission = (o.web_order_details || []).reduce((sum, item) => {
-                        const qte = Number(item.qte || 1);
-                        const comm = Number(item.item_commission || 0);
-                        return sum + (qte * comm);
-                    }, 0);
+                    let totalCommission = 0;
+                    if (o.web_order_details && o.web_order_details.length > 0) {
+                        o.web_order_details.forEach(item => {
+                            const qte = Number(item.qte || 0);
+                            const unitCommission = Number(item.products?.commission || 0);
+                            totalCommission += (qte * unitCommission);
+                        });
+                    }
+                    o.total_commission = totalCommission;
 
-                    o.calculated_commission = calculatedCommission;
-
+                    // دمج البيانات المحفوظة محلياً
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
-                    o.custom_commission = extra.commission !== undefined ? extra.commission : (o.custom_commission || o.calculated_commission || '');
                     o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
                 });
 
@@ -239,14 +207,17 @@
         function renderUI() {
             const pendingOrders = globalOrders.filter(o => !o.is_approved);
 
-            // حساب الإجمالي للطلبات المعلقة
+            // حساب الإجمالي والعمولة الكلية للطلبات المعلقة
             const grandTotal = pendingOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+            const grandCommission = pendingOrders.reduce((sum, item) => sum + Number(item.total_commission || 0), 0);
+
             document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
+            document.getElementById('totalCommissions').textContent = grandCommission.toFixed(2) + ' ج.س';
 
             renderOrders(pendingOrders);
         }
 
-        // 3. تحديث بيانات المسوق والعمولة
+        // 3. تحديث بيانات المسوق
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -258,7 +229,6 @@
                 if (field === 'custom_marketer_name') savedExtra[orderId].name = value;
                 if (field === 'custom_bank_name') savedExtra[orderId].bank = value;
                 if (field === 'custom_marketer_account') savedExtra[orderId].account = value;
-                if (field === 'custom_commission') savedExtra[orderId].commission = value;
 
                 saveExtraData(savedExtra);
             }
@@ -272,20 +242,17 @@
             const newApprovedState = !order.is_approved;
             order.is_approved = newApprovedState;
 
-            // حفظ الحالة محلياً فوراً
             const savedExtra = getSavedExtraData();
             if (!savedExtra[orderId]) savedExtra[orderId] = {};
             savedExtra[orderId].isApproved = newApprovedState;
             saveExtraData(savedExtra);
 
-            // تحديث الواجهة فوراً
             renderUI();
 
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
                 closeInvoiceModal();
             }
 
-            // تحديث السيرفر
             try {
                 await supabaseClient
                     .from('web_orders')
@@ -298,142 +265,22 @@
 
         // 5. حذف طلب
         async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
+            if (!confirm(`هل أنت تأكد من حذف الطلب رقم #${orderId}؟`)) return;
 
             try {
-                // حذف التفاصيل أولاً
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                // حذف الطلب الرئيسي
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
-
-                if (error) throw error;
+                await supabaseClient
+                    .from('web_orders')
+                    .delete()
+                    .eq('id_web_order', orderId);
 
                 globalOrders = globalOrders.filter(o => o.id_web_order !== orderId);
                 renderUI();
-                alert('تم حذف الطلب بنجاح');
-            } catch (err) {
-                alert('حدث خطأ أثناء الحذف: ' + err.message);
+            } catch (e) {
+                alert("حدث خطأ أثناء حذف الطلب: " + e.message);
             }
         }
 
-        // 6. معاينة وفتح الفاتورة
-        function openInvoiceModal(orderId) {
-            const order = globalOrders.find(o => o.id_web_order === orderId);
-            if (!order) return;
-
-            currentActiveOrder = order;
-
-            const modalBody = document.getElementById('modalInvoiceCard');
-            let detailsHtml = '';
-
-            if (order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach(item => {
-                    const price = Number(item.price || 0).toFixed(2);
-                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
-                    const itemComm = Number(item.item_commission || 0);
-                    const totalItemComm = (itemComm * Number(item.qte || 1)).toFixed(2);
-
-                    detailsHtml += `
-                    <tr class="border-b border-gray-100 text-xs">
-                        <td class="py-2 px-1 font-semibold">
-                            ${item.product_name || 'منتج'}
-                            ${itemComm > 0 ? `<div class="text-[10px] text-amber-700 font-medium">(عمولة القطعة: ${itemComm} ج.س)</div>` : ''}
-                        </td>
-                        <td class="py-2 px-1 text-center">${item.qte || 1}</td>
-                        <td class="py-2 px-1 text-center">${price}</td>
-                        <td class="py-2 px-1 text-left font-bold">${amount}</td>
-                    </tr>`;
-                });
-            } else {
-                detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
-            }
-
-            const totalCommission = Number(order.custom_commission || order.calculated_commission || 0).toFixed(2);
-
-            modalBody.innerHTML = `
-            <div id="printableInvoice" class="space-y-4">
-                <div class="text-center border-b pb-3 border-gray-200">
-                    <h2 class="text-lg font-black text-slate-900">فاتورة طلب #${order.id_web_order}</h2>
-                    <p class="text-[11px] text-gray-500">${order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : ''}</p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">العميل:</span>
-                        <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف الأساسي:</span>
-                        <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف الاحتياطي:</span>
-                        <span class="font-bold text-gray-700 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">العنوان:</span>
-                        <span class="font-semibold text-gray-800">${order.client_address || 'لم يحدد'}</span>
-                    </div>
-                </div>
-
-                <!-- خانة العمولة المستحقة بوضوح -->
-                <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs flex justify-between items-center">
-                    <span class="font-bold text-amber-900">💵 العمولة المستحقة للطلب:</span>
-                    <span class="font-black text-amber-700 text-base">${totalCommission} ج.س</span>
-                </div>
-
-                ${(order.custom_marketer_name || order.custom_bank_name || order.custom_marketer_account) ? `
-                <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
-                    <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
-                    ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
-                    ${order.custom_bank_name ? `<div>• البنك: <span class="font-semibold">${order.custom_bank_name}</span></div>` : ''}
-                    ${order.custom_marketer_account ? `<div>• الحساب: <span class="font-semibold">${order.custom_marketer_account}</span></div>` : ''}
-                </div>` : ''}
-
-                <div>
-                    <table class="w-full text-right border-collapse">
-                        <thead>
-                            <tr class="border-b border-gray-200 text-[11px] text-gray-500">
-                                <th class="py-1.5 px-1">المنتج</th>
-                                <th class="py-1.5 px-1 text-center">الكمية</th>
-                                <th class="py-1.5 px-1 text-center">السعر</th>
-                                <th class="py-1.5 px-1 text-left">المجموع</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${detailsHtml}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex justify-between items-center bg-slate-900 text-white p-3 rounded-xl font-bold text-sm">
-                    <span>المبلغ الإجمالي:</span>
-                    <span class="text-emerald-400 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
-                </div>
-            </div>`;
-
-            document.getElementById('invoiceModal').classList.remove('hidden');
-        }
-
-        // 7. إرسال إلى واتساب
-        function sendToWhatsappDirectly() {
-            if (!currentActiveOrder) return;
-            const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
-            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، بخصوص طلبك رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س.`;
-            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-        }
-
-        // 8. نسخ نص الفاتورة
-        function copyInvoiceText() {
-            if (!currentActiveOrder) return;
-            const commission = Number(currentActiveOrder.custom_commission || currentActiveOrder.calculated_commission || 0).toFixed(2);
-            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالعمولة المستحقة: ${commission} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
-            navigator.clipboard.writeText(text).then(() => {
-                alert('تم نسخ تفاصيل الفاتورة بنجاح');
-            });
-        }
-
-        // 9. رسم جدول الطلبات والكروت
+        // 6. رسم جدول الطلبات والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -451,7 +298,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const calculatedCommission = Number(order.custom_commission || order.calculated_commission || 0).toFixed(2);
+                const commission = Number(order.total_commission || 0).toFixed(2);
                 
                 const statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
                 const approveBtnClass = `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
@@ -465,7 +312,10 @@
                             <span class="font-black text-slate-900 text-sm">طلب #${order.id_web_order}</span>
                             ${statusBadge}
                         </div>
-                        <span class="text-blue-600 font-extrabold text-sm">${total} ج.س</span>
+                        <div class="text-left">
+                            <div class="text-blue-600 font-extrabold text-sm">${total} ج.س</div>
+                            <div class="text-amber-600 font-bold text-[11px]">عمولة: ${commission} ج.س</div>
+                        </div>
                     </div>
                     
                     <div class="text-xs space-y-1">
@@ -474,12 +324,6 @@
                         <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
-                    </div>
-
-                    <!-- خانة العمولة المستحقة للطلب -->
-                    <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex justify-between items-center text-xs">
-                        <span class="font-bold text-amber-900">💵 العمولة المستحقة:</span>
-                        <span class="font-black text-amber-700">${calculatedCommission} ج.س</span>
                     </div>
 
                     <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 space-y-2">
@@ -492,9 +336,6 @@
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="number" placeholder="العمولة المخصصة (ج.س)" value="${order.custom_commission || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
                     </div>
 
@@ -531,18 +372,11 @@
                             <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="number" placeholder="تعديل العمولة (ج.س)" value="${order.custom_commission || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         </div>
-                    </td>
-                    <td class="p-4">
-                        <span class="inline-block bg-amber-100 text-amber-900 font-extrabold px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
-                            💵 ${calculatedCommission} ج.س
-                        </span>
                     </td>
                     <td class="p-4">${statusBadge}</td>
                     <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
+                    <td class="p-4 font-extrabold text-amber-600">${commission} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
                     <td class="p-4">
                         <div class="flex items-center justify-center gap-1.5">
@@ -560,9 +394,152 @@
             mobileList.innerHTML = cardsHtml;
         }
 
+        // 7. فتح نافذة معاينة الفاتورة
+        function openInvoiceModal(orderId) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (!order) return;
+
+            currentActiveOrder = order;
+
+            const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+            const total = Number(order.total_amount || 0).toFixed(2);
+            const commission = Number(order.total_commission || 0).toFixed(2);
+
+            let itemsHtml = '';
+            if (order.web_order_details && order.web_order_details.length > 0) {
+                order.web_order_details.forEach(item => {
+                    const price = Number(item.price || 0).toFixed(2);
+                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    const itemComm = Number(item.products?.commission || 0);
+                    const totalItemComm = (item.qte * itemComm).toFixed(2);
+
+                    itemsHtml += `
+                    <tr class="border-b border-gray-100 text-xs">
+                        <td class="py-2.5 px-2 font-semibold text-gray-800">${item.product_name || 'منتج غير معروف'}</td>
+                        <td class="py-2.5 px-2 text-center font-bold">${item.qte}</td>
+                        <td class="py-2.5 px-2 text-center">${price}</td>
+                        <td class="py-2.5 px-2 text-center font-bold text-amber-700">${totalItemComm}</td>
+                        <td class="py-2.5 px-2 text-left font-extrabold text-gray-900">${amount}</td>
+                    </tr>`;
+                });
+            } else {
+                itemsHtml = `<tr><td colspan="5" class="text-center py-4 text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
+            }
+
+            const modalContent = `
+            <div id="printableInvoice" class="space-y-4">
+                <div class="flex justify-between items-center border-b border-gray-200 pb-3">
+                    <div>
+                        <h2 class="text-lg font-black text-slate-900">فاتورة طلب #${order.id_web_order}</h2>
+                        <span class="text-[11px] text-gray-500 dir-ltr block">${date}</span>
+                    </div>
+                    <div class="text-left">
+                        <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">⏳ معلقة</span>
+                    </div>
+                </div>
+
+                <!-- بيانات العميل -->
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1 text-xs">
+                    <div class="font-black text-slate-900">${order.client_name || 'بدون اسم'}</div>
+                    <div class="text-emerald-700 font-bold dir-ltr text-right">📱 ${order.client_phone || '-'}</div>
+                    ${order.client_second_phone ? `<div class="text-gray-600 dir-ltr text-right">📞 ${order.client_second_phone}</div>` : ''}
+                    <div class="text-gray-600">📍 ${order.client_address || 'العنوان غير محدد'}</div>
+                </div>
+
+                <!-- بيانات المسوق إذا وجدت -->
+                ${(order.custom_marketer_name || order.custom_bank_name || order.custom_marketer_account) ? `
+                <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 text-xs space-y-1">
+                    <span class="font-extrabold text-indigo-900 block border-b border-indigo-100 pb-1">تفاصيل المسوق والتحويل:</span>
+                    <div><span class="text-gray-500">اسم المسوق:</span> <strong class="text-gray-800">${order.custom_marketer_name || '-'}</strong></div>
+                    <div><span class="text-gray-500">البنك:</span> <strong class="text-gray-800">${order.custom_bank_name || '-'}</strong></div>
+                    <div><span class="text-gray-500">رقم الحساب:</span> <strong class="text-gray-800 dir-ltr inline-block">${order.custom_marketer_account || '-'}</strong></div>
+                </div>` : ''}
+
+                <!-- جدول المنتجات -->
+                <table class="w-full text-right border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-[11px] font-bold">
+                            <th class="py-2 px-2">المنتج</th>
+                            <th class="py-2 px-2 text-center">الكمية</th>
+                            <th class="py-2 px-2 text-center">السعر</th>
+                            <th class="py-2 px-2 text-center">العمولة</th>
+                            <th class="py-2 px-2 text-left">الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+
+                <!-- المبالغ والعمولات -->
+                <div class="border-t border-gray-200 pt-3 space-y-1.5 text-xs">
+                    <div class="flex justify-between text-gray-600">
+                        <span>إجمالي قيمة المنتجات:</span>
+                        <span class="font-bold text-gray-900">${total} ج.س</span>
+                    </div>
+                    <div class="flex justify-between text-amber-700 font-extrabold bg-amber-50 p-2 rounded-lg">
+                        <span>إجمالي العمولة المستحقة:</span>
+                        <span>${commission} ج.س</span>
+                    </div>
+                    <div class="flex justify-between text-base font-black text-blue-900 border-t border-gray-100 pt-2">
+                        <span>الإجمالي الكلي:</span>
+                        <span>${total} ج.س</span>
+                    </div>
+                </div>
+            </div>`;
+
+            document.getElementById('modalInvoiceCard').innerHTML = modalContent;
+            document.getElementById('invoiceModal').classList.remove('hidden');
+        }
+
         // إغلاق نافذة الفاتورة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
+            currentActiveOrder = null;
+        }
+
+        // نسخ نص الفاتورة
+        function copyInvoiceText() {
+            if (!currentActiveOrder) return;
+
+            const o = currentActiveOrder;
+            let text = `🧾 *فاتورة طلب رقم #${o.id_web_order}*\n`;
+            text += `👤 العميل: ${o.client_name || '-'}\n`;
+            text += `📱 الهاتف: ${o.client_phone || '-'}\n`;
+            text += `📍 العنوان: ${o.client_address || '-'}\n`;
+            text += `-------------------------\n`;
+            text += `📦 *المنتجات:*\n`;
+
+            if (o.web_order_details && o.web_order_details.length > 0) {
+                o.web_order_details.forEach(item => {
+                    const price = Number(item.price || 0).toFixed(2);
+                    text += `- ${item.product_name} (الكمية: ${item.qte}) - السعر: ${price} ج.س\n`;
+                });
+            }
+
+            text += `-------------------------\n`;
+            text += `💰 *الإجمالي:* ${Number(o.total_amount || 0).toFixed(2)} ج.س\n`;
+            text += `💵 *العمولة الحقيقية:* ${Number(o.total_commission || 0).toFixed(2)} ج.س\n`;
+
+            if (o.custom_marketer_name) text += `👨‍💼 المسوق: ${o.custom_marketer_name}\n`;
+            if (o.custom_bank_name) text += `🏦 البنك: ${o.custom_bank_name}\n`;
+            if (o.custom_marketer_account) text += `💳 الحساب: ${o.custom_marketer_account}\n`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert("تم نسخ تفاصيل الفاتورة بنجاح!");
+            }).catch(e => {
+                alert("فشل نسخ النص.");
+            });
+        }
+
+        // إرسال مباشر للواتساب
+        function sendToWhatsappDirectly() {
+            if (!currentActiveOrder) return;
+            const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
+            
+            let text = `مرحباً ${currentActiveOrder.client_name || ''}، بخصوص طلبك رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س.`;
+            const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
         }
 
         // تشغيل الجلب التلقائي عند تحميل الصفحة
