@@ -29,7 +29,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
                 <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 لوحة التحكم: إدارة الطلبات</h1>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">متابعة طلبات العملاء وطباعة الفواتير والإحصائيات</p>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">متابعة طلبات العملاء واعتماد الفواتير وطباعتها</p>
             </div>
             
             <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -56,6 +56,7 @@
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
+                            <th class="p-4">الحالة</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
                             <th class="p-4 text-center">الخيارات</th>
@@ -63,7 +64,7 @@
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -74,4 +75,158 @@
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
             
-            <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5
+            <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h3 class="font-bold text-xs sm:text-sm tracking-wide">معاينة وإصدار الفاتورة</h3>
+                </div>
+                <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-base transition active:scale-95">✕</button>
+            </div>
+
+            <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
+                </div>
+
+            <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
+                <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    إغلاق
+                </button>
+                
+                <div class="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                    <button onclick="sendToWhatsappDirectly()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                        💬 واتساب
+                    </button>
+                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                        📋 نسخ
+                    </button>
+                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-4 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                        🖨️ طباعة
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://ihlwkwiimimoiplfqcdk.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"; 
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let globalOrders = [];
+        let currentActiveOrder = null;
+
+        // 1. جلب الطلبات
+        async function fetchOrders() {
+            try {
+                const { data: orders, error } = await supabaseClient
+                    .from('web_orders')
+                    .select(`
+                        *,
+                        web_order_details (
+                            id_product,
+                            product_name,
+                            qte,
+                            price,
+                            amount,
+                            products (
+                                id_product,
+                                commission
+                            )
+                        )
+                    `)
+                    .order('date_created', { ascending: false });
+
+                if (error) throw error;
+                
+                // حفظ القيم المؤقتة وحالة الاعتماد
+                const prevData = {};
+                globalOrders.forEach(o => {
+                    prevData[o.id_web_order] = {
+                        name: o.custom_marketer_name,
+                        bank: o.custom_bank_name,
+                        account: o.custom_marketer_account,
+                        isApproved: o.is_approved
+                    };
+                });
+
+                globalOrders = orders || [];
+                globalOrders.forEach(o => {
+                    if (prevData[o.id_web_order]) {
+                        o.custom_marketer_name = prevData[o.id_web_order].name || '';
+                        o.custom_bank_name = prevData[o.id_web_order].bank || '';
+                        o.custom_marketer_account = prevData[o.id_web_order].account || '';
+                        o.is_approved = prevData[o.id_web_order].isApproved || false;
+                    } else {
+                        o.custom_marketer_name = '';
+                        o.custom_bank_name = '';
+                        o.custom_marketer_account = '';
+                        o.is_approved = false;
+                    }
+                });
+
+                const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+                document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
+
+                renderOrders(globalOrders);
+
+            } catch (err) {
+                console.error("خطأ عند جلب الطلبات:", err);
+                const errMsg = err.message || err.error_description || JSON.stringify(err);
+                alert("فشل جلب البيانات: " + errMsg);
+            }
+        }
+
+        // 2. تحديث الحقول في الذاكرة
+        function setOrderMarketerData(orderId, field, value) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (order) {
+                order[field] = value;
+            }
+        }
+
+        // 3. التبديل بين اعتماد الطلب أو قيد الانتظار
+        function toggleApproval(orderId) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (order) {
+                order.is_approved = !order.is_approved;
+                renderOrders(globalOrders);
+                if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
+                    openInvoiceModal(orderId);
+                }
+            }
+        }
+
+        // 4. عرض القائمة والجدول
+        function renderOrders(orders) {
+            const tbody = document.getElementById('ordersTableBody');
+            const mobileList = document.getElementById('mobileOrdersList');
+
+            if (!orders || orders.length === 0) {
+                const emptyHtml = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مسجلة حالياً.</div>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
+                mobileList.innerHTML = emptyHtml;
+                return;
+            }
+
+            let tableHtml = '';
+            let cardsHtml = '';
+
+            orders.forEach(order => {
+                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+                const total = Number(order.total_amount || 0).toFixed(2);
+                
+                const statusBadge = order.is_approved 
+                    ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`
+                    : `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
+
+                const approveBtnClass = order.is_approved
+                    ? `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`
+                    : `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
+
+                const approveBtnText = order.is_approved ? `⏳ إلغاء الاعتماد` : `✅ اعتماد الطلب`;
+
+                // كروت الجوال
+                cardsHtml += `
+                <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center border-b border-
