@@ -41,30 +41,35 @@
 
         <!-- القائمة الجانبية Navigation Sidebar -->
         <aside id="sidebar" class="bg-slate-800 text-slate-200 w-64 flex-shrink-0 flex flex-col justify-between absolute md:relative inset-y-0 right-0 transform translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out z-10 shadow-lg md:shadow-none">
-            <div class="p-3 space-y-1">
+            <div class="p-3 space-y-1 overflow-y-auto">
                 <div class="text-[10px] font-bold text-slate-400 px-3 py-2 uppercase tracking-wider">الأقسام الرئيسية</div>
 
-                <!-- 1. المتجر الرئيسية -->
+                <!-- 1. المتجر الرئيسي -->
                 <a href="#" onclick="loadPage('store.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs hover:bg-slate-700/60 hover:text-white transition active-link bg-blue-600 text-white">
                     <span class="text-base">🏪</span> المتجر الرئيسي
                 </a>
 
-                <!-- 2. إدارة الطلبات والفواتير -->
+                <!-- 2. إدارة الطلبات -->
                 <a href="#" onclick="loadPage('web_admin.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition">
-                    <span class="text-base">📦</span> إدارة الطلبات والفواتير
+                    <span class="text-base">📦</span> إدارة الطلبات
                 </a>
 
-                <!-- 3. إدارة المنتجات -->
+                <!-- 3. إدارة الفواتير (تمت إضافتها هنا) -->
+                <a href="#" onclick="loadPage('invoice.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition">
+                    <span class="text-base">🧾</span> إدارة الفواتير
+                </a>
+
+                <!-- 4. إدارة المنتجات -->
                 <a href="#" onclick="loadPage('products.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition">
                     <span class="text-base">🏷️</span> إدارة المنتجات
                 </a>
 
-                <!-- 4. التصنيفات -->
+                <!-- 5. التصنيفات -->
                 <a href="#" onclick="loadPage('categories.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition">
                     <span class="text-base">📂</span> تصنيفات المنتجات
                 </a>
 
-                <!-- 5. إدارة المستخدمين والمسوقين -->
+                <!-- 6. إدارة المستخدمين والمسوقين -->
                 <a href="#" onclick="loadPage('tb_users.html', this)" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition">
                     <span class="text-base">👥</span> المستخدمين والمسوقين
                 </a>
