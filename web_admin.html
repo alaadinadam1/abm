@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -311,7 +312,7 @@
                     </div>
                     <div>
                         <span class="text-gray-500 block text-[10px]">العمولة المستحقة:</span>
-                        <span class="font-bold text-purple-600 block">${order.commission || '0.00'} ج.س</span>
+                        <span class="font-bold text-purple-600 block">${order.commission ? order.commission + ' ج.س' : '0.00 ج.س'}</span>
                     </div>
                     <div class="col-span-2">
                         <span class="text-gray-500 block text-[10px]">العنوان:</span>
@@ -361,7 +362,7 @@
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعمولة: ${currentActiveOrder.commission || '0'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
@@ -405,7 +406,7 @@
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 الأساسي: ${order.client_phone || '-'}</div>
                         <div class="text-indigo-600 dir-ltr text-right font-semibold">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
-                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة المستحقة: ${commissionVal}</div>
+                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة: ${commissionVal}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
