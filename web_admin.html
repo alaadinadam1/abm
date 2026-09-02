@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"> 
-<head> 
+<html lang="ar" dir="rtl">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>إدارة طلبات الموقع</title>
@@ -55,7 +55,7 @@
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
-                            <th class="p-4">بيانات المسوق (إدخال)</th>
+                            <th class="p-4 min-w-[200px]">بيانات المسوق والبنك (إدخال)</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
                             <th class="p-4 text-center">الخيارات</th>
@@ -138,11 +138,12 @@
 
                 if (error) throw error;
                 
-                // الحفاظ على البيانات المدخلة سابقاً إذا أُعيد جلب البيانات
+                // الحفاظ على البيانات المدخلة سابقاً
                 const prevData = {};
                 globalOrders.forEach(o => {
                     prevData[o.id_web_order] = {
                         name: o.custom_marketer_name,
+                        bank: o.custom_bank_name,
                         account: o.custom_marketer_account
                     };
                 });
@@ -151,9 +152,11 @@
                 globalOrders.forEach(o => {
                     if (prevData[o.id_web_order]) {
                         o.custom_marketer_name = prevData[o.id_web_order].name || '';
+                        o.custom_bank_name = prevData[o.id_web_order].bank || '';
                         o.custom_marketer_account = prevData[o.id_web_order].account || '';
                     } else {
                         o.custom_marketer_name = '';
+                        o.custom_bank_name = '';
                         o.custom_marketer_account = '';
                     }
                 });
@@ -170,7 +173,7 @@
             }
         }
 
-        // 2. تحديث بيانات المسوق عند الكتابة في الخانات بالصفحة
+        // 2. تحديث بيانات المسوق والبنك عند الكتابة
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -178,7 +181,7 @@
             }
         }
 
-        // 3. عرض القائمة والجدول بوجود خانات إدخال المسوق
+        // 3. عرض القائمة والجدول بوجود الخانات الثلاث
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -213,9 +216,12 @@
                     </div>
 
                     <div class="bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100 space-y-1.5 text-xs">
-                        <span class="text-[10px] font-bold text-indigo-700 block">بيانات المسوق:</span>
+                        <span class="text-[10px] font-bold text-indigo-700 block">بيانات المسوق والتحويل:</span>
                         <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
+                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
+                        <input type="text" placeholder="اسم البنك (مثال: بنك الخرطوم)" value="${order.custom_bank_name || ''}" 
+                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
@@ -243,6 +249,9 @@
                     <td class="p-4 space-y-1">
                         <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
+                            class="w-full p-1.5 border border-indigo-100 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
+                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" 
+                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
                             class="w-full p-1.5 border border-indigo-100 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
@@ -346,10 +355,14 @@
                     </div>
 
                     <div class="bg-indigo-50/70 p-3 sm:p-4 rounded-xl border border-indigo-100 text-xs space-y-1.5">
-                        <div class="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">بيانات المسوق والتحويل</div>
+                        <div class="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">بيانات المسوق والتحويل البنكي</div>
                         <div class="flex justify-between items-center text-slate-700 pt-1">
                             <span class="font-medium">اسم المسوق:</span>
                             <span class="font-bold text-indigo-950">${order.custom_marketer_name || 'غير محدد'}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-700">
+                            <span class="font-medium">اسم البنك:</span>
+                            <span class="font-bold text-slate-800">${order.custom_bank_name || 'غير محدد'}</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-700">
                             <span class="font-medium">رقم الحساب البنكي:</span>
@@ -401,6 +414,7 @@
         // 6. تجهيز نص المشاركة والواتساب
         function buildShareText(order, commission) {
             const mName = order.custom_marketer_name || 'غير مسجل';
+            const mBank = order.custom_bank_name || 'غير مسجل';
             const mAccount = order.custom_marketer_account || 'غير مسجل';
 
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
@@ -410,7 +424,8 @@
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
             text += `👨‍💼 *المسوق:* ${mName}\n`;
-            text += `💳 *الحساب البنكي:* ${mAccount}\n`;
+            text += `🏦 *البنك:* ${mBank}\n`;
+            text += `💳 *رقم الحساب:* ${mAccount}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
