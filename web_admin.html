@@ -22,7 +22,7 @@
         <div class="flex justify-between items-center bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
                 <h1 class="text-lg sm:text-2xl font-black text-slate-900">📦 قائمة الطلبات</h1>
-                <p class="text-xs text-gray-500">إدارة التعديل المباشر للطلبات والمسوقين والمنتجات</p>
+                <p class="text-xs text-gray-500">حفظ وتعديل بيانات الطلب والمسوق والمنتجات مباشر في الطلب</p>
             </div>
             
             <button onclick="fetchOrders()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-xl text-xs transition active:scale-95">
@@ -30,7 +30,7 @@
             </button>
         </div>
 
-        <!-- قائمة الطلبات (بطاقات) -->
+        <!-- قائمة الطلبات (بطاقات كروت) -->
         <div id="ordersCardsContainer" class="space-y-3">
             <div class="p-8 text-center bg-white rounded-2xl text-gray-400 font-semibold border border-gray-200">
                 جاري تحميل الطلبات...
@@ -44,15 +44,15 @@
         <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col border border-gray-100 p-4 sm:p-6 space-y-4 max-h-[92vh] my-auto">
             
             <div class="flex justify-between items-center border-b border-gray-100 pb-3 shrink-0">
-                <h3 class="font-bold text-base text-slate-900">✏️ تعديل طلب رقم <span id="modalOrderId" class="text-blue-600"></span></h3>
+                <h3 class="font-bold text-base text-slate-900">✏️ تعديل فاتورة طلب رقم <span id="modalOrderId" class="text-blue-600"></span></h3>
                 <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold">✕</button>
             </div>
 
             <div class="overflow-y-auto space-y-4 grow pr-1">
                 
-                <!-- 1. قسم بيانات المسوق والبيانات البنكية -->
+                <!-- 1. قسم بيانات المسوق والبيانات البنكية (تُكتب هنا وتُحفظ مع الفاتورة) -->
                 <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-3">
-                    <h4 class="font-bold text-xs text-amber-900 border-b border-amber-200 pb-1.5">📢 بيانات المسوق والبنك</h4>
+                    <h4 class="font-bold text-xs text-amber-900 border-b border-amber-200 pb-1.5">📢 بيانات المسوق والبنك (تُحفظ داخل الفاتورة)</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         <div>
                             <label class="block text-[11px] font-bold text-amber-900 mb-1">اسم المسوق:</label>
@@ -104,7 +104,7 @@
                     <div id="productsListContainer" class="space-y-2"></div>
 
                     <div class="flex justify-between items-center bg-blue-50 p-3.5 rounded-xl border border-blue-100 mt-3">
-                        <span class="font-black text-slate-800 text-xs">إجمالي الطلب:</span>
+                        <span class="font-black text-slate-800 text-xs">إجمالي الفاتورة:</span>
                         <span id="calculatedTotalAmount" class="font-black text-blue-900 text-base">0.00 ج.س</span>
                     </div>
                 </div>
@@ -117,7 +117,7 @@
                     إلغاء
                 </button>
                 <button type="button" id="saveOrderBtn" onclick="saveOrderAndProducts()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition shadow-sm">
-                    💾 حفظ البيانات
+                    💾 حفظ الفاتورة بالكامل
                 </button>
             </div>
 
@@ -133,7 +133,7 @@
         let globalOrders = [];
         let editingOrder = null;
 
-        // 1. جلب البيانات
+        // 1. جلب بيانات الطلبات
         async function fetchOrders() {
             try {
                 const { data, error } = await supabaseClient
@@ -154,7 +154,7 @@
             }
         }
 
-        // 2. عرض الطلبات كبطاقات
+        // 2. عرض الطلبات
         function renderOrdersCards() {
             const container = document.getElementById('ordersCardsContainer');
 
@@ -205,6 +205,7 @@
 
             document.getElementById('modalOrderId').textContent = `#${editingOrder.id_web_order}`;
             
+            // جلب البيانات المخزنة بنفس سطر الفاتورة
             document.getElementById('inputMarketerName').value = editingOrder.marketer_name || editingOrder.marketer || '';
             document.getElementById('inputBankName').value = editingOrder.bank_name || '';
             document.getElementById('inputAccountNumber').value = editingOrder.account_number || '';
@@ -222,7 +223,7 @@
 
                 if (details) editingOrder.web_order_details = details;
             } catch (e) {
-                console.error("خطأ تفاصيل المنتجات:", e);
+                console.error("خطأ منتجات الفاتورة:", e);
             }
 
             renderProductsList();
@@ -300,7 +301,7 @@
             renderProductsList();
         }
 
-        // 5. حفظ كافة البيانات الحالية بالجدول الرئيسي والفرعي
+        // 5. حفظ كافة بيانات الفاتورة المباشرة في جدول web_orders
         async function saveOrderAndProducts() {
             if (!editingOrder) return;
 
@@ -308,6 +309,7 @@
             saveBtn.disabled = true;
             saveBtn.textContent = 'جاري الحفظ...';
 
+            // تجميع كافة البيانات ليتم إرسالها لجدول الطلبات فقط
             const payload = {
                 client_name: document.getElementById('inputClientName').value || null,
                 client_phone: document.getElementById('inputClientPhone').value || null,
@@ -320,25 +322,21 @@
             };
 
             try {
-                // 1) تحديث البيانات الرئيسية للطلب
+                // حفظ البيانات بجدول الطلبات الرئيسي
                 const { error: orderErr } = await supabaseClient
                     .from('web_orders')
                     .update(payload)
                     .eq('id_web_order', editingOrder.id_web_order);
 
                 if (orderErr) {
-                    throw new Error("خطأ تحديث الطلب: " + (orderErr.message || orderErr.details || JSON.stringify(orderErr)));
+                    throw new Error(orderErr.message || JSON.stringify(orderErr));
                 }
 
-                // 2) إعادة تحديث تفاصيل المنتجات للطلب
-                const { error: deleteErr } = await supabaseClient
+                // تحديث تفاصيل المنتجات
+                await supabaseClient
                     .from('web_order_details')
                     .delete()
                     .eq('id_web_order', editingOrder.id_web_order);
-
-                if (deleteErr) {
-                    console.warn("حذف التفاصيل القديمة:", deleteErr);
-                }
 
                 if (editingOrder.web_order_details && editingOrder.web_order_details.length > 0) {
                     const rowsToInsert = editingOrder.web_order_details.map(item => ({
@@ -353,21 +351,19 @@
                         .from('web_order_details')
                         .insert(rowsToInsert);
 
-                    if (insertErr) {
-                        throw new Error("خطأ إضافة المنتجات: " + (insertErr.message || insertErr.details || JSON.stringify(insertErr)));
-                    }
+                    if (insertErr) throw new Error(insertErr.message);
                 }
 
-                alert('✅ تم حفظ كافة البيانات بنجاح');
+                alert('✅ تم حفظ كافة البيانات بنجاح في الفاتورة');
                 closeModal();
                 fetchOrders();
 
             } catch (err) {
-                console.error("خطأ أثناء الحفظ الكامل:", err);
-                alert('❌ تعذر الحفظ:\n' + err.message);
+                console.error("خطأ الحفظ:", err);
+                alert('❌ تعذر الحفظ:\n' + err.message + '\n\nبرجاء مراجعة خطوة إضافة الأعمدة في Supabase إذا استمر هذا الخطأ.');
             } finally {
                 saveBtn.disabled = false;
-                saveBtn.textContent = '💾 حفظ البيانات';
+                saveBtn.textContent = '💾 حفظ الفاتورة بالكامل';
             }
         }
 
