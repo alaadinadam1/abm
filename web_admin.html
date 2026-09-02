@@ -3,66 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة طلبات الموقع</title>
-    <!-- استخدام Tailwind Play CDN المخصص للتطوير بدون تحذيرات Console -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>إدارة طلبات الموقع - تعديل بيانات العميل</title>
+    <script>
+        window.tailwind = { config: { suppressDeprecationWarnings: true } };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-        
-        @media print {
-            body * { visibility: hidden; }
-            #printableInvoice, #printableInvoice * { visibility: visible; }
-            #printableInvoice {
-                position: fixed; left: 0; top: 0; width: 100%; height: auto;
-                margin: 0; padding: 15px !important; box-shadow: none !important;
-                border: none !important; background: white !important;
-            }
-            .no-print { display: none !important; }
-        }
     </style>
 </head>
 <body class="bg-slate-100 text-gray-800 p-2 sm:p-4 md:p-8 min-h-screen pb-20 sm:pb-8">
 
     <div class="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         
-        <!-- شريط العنوان والبطاقات الإحصائية -->
+        <!-- شريط العنوان -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
-                <h1 id="pageTitle" class="text-xl sm:text-2xl font-black text-slate-900">📦 الطلبات المعلقة (قيد الانتظار)</h1>
-                <p id="pageSubTitle" class="text-[11px] sm:text-xs text-gray-500 mt-0.5">الطلبات الجديدة التي تنتظر المراجعة والاعتماد والتعديل</p>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 إدارة الطلبات (الخطوة 1: تعديل العميل)</h1>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">مراجعة وتعديل بيانات العميل الأساسية</p>
             </div>
             
-            <div class="flex items-center gap-3 w-full sm:w-auto">
-                <div class="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl text-right flex-1 sm:flex-none">
-                    <span id="totalLabel" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">إجمالي الطلبات المعلقة</span>
-                    <span id="totalRevenue" class="text-lg sm:text-xl font-black text-blue-900">0.00 ج.س</span>
-                </div>
-                
-                <button onclick="fetchOrders()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
-                    🔄 <span class="hidden sm:inline">تحديث البيانات</span>
-                </button>
-            </div>
+            <button onclick="fetchOrders()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
+                🔄 <span>تحديث البيانات</span>
+            </button>
         </div>
 
-        <!-- عرض كروت الجوال -->
-        <div id="mobileOrdersList" class="block md:hidden space-y-3">
-            <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
-        </div>
-
-        <!-- الجدول الرئيسي للكمبيوتر -->
-        <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <!-- الجدول الرئيسي -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse text-xs md:text-sm">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
-                            <th class="p-4">العميل والهاتف</th>
-                            <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
-                            <th class="p-4">الحالة</th>
+                            <th class="p-4">اسم العميل</th>
+                            <th class="p-4">الهاتف الأساسي</th>
+                            <th class="p-4">الهاتف الثانوي</th>
+                            <th class="p-4">العنوان</th>
                             <th class="p-4">المبلغ الإجمالي</th>
-                            <th class="p-4">تاريخ الطلب</th>
                             <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
@@ -76,36 +55,45 @@
         </div>
     </div>
 
-    <!-- النافذة المنبثقة للتعديل والمعاينة Edit & Invoice Modal -->
-    <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100">
+    <!-- نافذة تعديل بيانات العميل -->
+    <div id="editClientModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col border border-gray-100 p-6 space-y-4">
             
-            <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <h3 class="font-bold text-xs sm:text-sm tracking-wide">تعديل بيانات العميل والمنتجات</h3>
-                </div>
-                <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-base transition active:scale-95">✕</button>
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 class="font-bold text-base text-slate-900">✏️ تعديل بيانات العميل <span id="modalOrderId" class="text-blue-600"></span></h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold">✕</button>
             </div>
 
-            <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow space-y-6">
-                <!-- يتم تعبئة نموذج التعديل والمعاينة ديناميكياً -->
-            </div>
+            <form id="editClientForm" onsubmit="handleSaveClient(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">اسم العميل:</label>
+                    <input type="text" id="inputClientName" required class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
 
-            <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
-                <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
-                    إغلاق
-                </button>
-                
-                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    <button onclick="saveOrderDetailsChanges()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 transition shadow-sm">
-                        💾 حفظ التعديلات
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">الهاتف الأساسي:</label>
+                    <input type="text" id="inputClientPhone" required class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold dir-ltr text-right focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">الهاتف الثانوي:</label>
+                    <input type="text" id="inputClientSecondPhone" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold dir-ltr text-right focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">العنوان:</label>
+                    <input type="text" id="inputClientAddress" class="w-full p-2.5 border border-gray-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+                    <button type="button" onclick="closeModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                        إلغاء
                     </button>
-                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1 transition shadow-sm">
-                        🖨️ طباعة
+                    <button type="submit" id="saveBtn" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition shadow-sm">
+                        💾 حفظ البيانات
                     </button>
                 </div>
-            </div>
+            </form>
 
         </div>
     </div>
@@ -117,59 +105,20 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let globalOrders = [];
-        let currentActiveOrder = null;
+        let selectedOrder = null;
 
-        function getSavedExtraData() {
-            try {
-                return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
-            } catch (e) {
-                return {};
-            }
-        }
-
-        function saveExtraData(data) {
-            try {
-                localStorage.setItem('orders_extra_data', JSON.stringify(data));
-            } catch (e) {
-                console.error("تعذر الحفظ في الذاكرة المحلية", e);
-            }
-        }
-
-        // 1. جلب الطلبات مع تبسيط الاستعلام لتجنب أخطاء المفاتيح الأجنبية
+        // 1. جلب الطلبات (من جدول web_orders فقط لتجنب مشاكل العلاقات حالياً)
         async function fetchOrders() {
             try {
-                const { data: orders, error } = await supabaseClient
+                const { data, error } = await supabaseClient
                     .from('web_orders')
-                    .select(`
-                        *,
-                        web_order_details (
-                            id_web_order_details,
-                            id_product,
-                            product_name,
-                            qte,
-                            price,
-                            amount
-                        )
-                    `)
+                    .select('*')
                     .order('date_created', { ascending: false });
 
-                if (error) {
-                    console.error("تفاصيل خطأ Supabase:", error);
-                    throw new Error(error.message || error.details || "فشل الاتصال بقاعدة البيانات");
-                }
+                if (error) throw error;
 
-                const savedExtra = getSavedExtraData();
-                globalOrders = orders || [];
-
-                globalOrders.forEach(o => {
-                    const extra = savedExtra[o.id_web_order] || {};
-                    o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
-                    o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
-                    o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
-                    o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
-                });
-
-                renderUI();
+                globalOrders = data || [];
+                renderOrdersTable();
 
             } catch (err) {
                 console.error("خطأ عند جلب الطلبات:", err);
@@ -177,382 +126,93 @@
             }
         }
 
-        function renderUI() {
-            const pendingOrders = globalOrders.filter(o => !o.is_approved);
-            const grandTotal = pendingOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-            document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
-            renderOrders(pendingOrders);
-        }
-
-        function setOrderMarketerData(orderId, field, value) {
-            const order = globalOrders.find(o => o.id_web_order === orderId);
-            if (order) {
-                order[field] = value;
-                const savedExtra = getSavedExtraData();
-                if (!savedExtra[orderId]) savedExtra[orderId] = {};
-                if (field === 'custom_marketer_name') savedExtra[orderId].name = value;
-                if (field === 'custom_bank_name') savedExtra[orderId].bank = value;
-                if (field === 'custom_marketer_account') savedExtra[orderId].account = value;
-                saveExtraData(savedExtra);
-            }
-        }
-
-        async function toggleApproval(orderId) {
-            const order = globalOrders.find(o => o.id_web_order === orderId);
-            if (!order) return;
-
-            const newApprovedState = !order.is_approved;
-            order.is_approved = newApprovedState;
-
-            const savedExtra = getSavedExtraData();
-            if (!savedExtra[orderId]) savedExtra[orderId] = {};
-            savedExtra[orderId].isApproved = newApprovedState;
-            saveExtraData(savedExtra);
-
-            renderUI();
-
-            if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
-                closeInvoiceModal();
-            }
-
-            try {
-                await supabaseClient
-                    .from('web_orders')
-                    .update({ is_approved: newApprovedState })
-                    .eq('id_web_order', orderId);
-            } catch (e) {
-                console.log("تم حفظ حالة الاعتماد محلياً.");
-            }
-        }
-
-        function renderOrders(orders) {
+        // 2. عرض البيانات في الجدول
+        function renderOrdersTable() {
             const tbody = document.getElementById('ordersTableBody');
-            const mobileList = document.getElementById('mobileOrdersList');
 
-            if (!orders || orders.length === 0) {
-                const emptyMsg = 'لا توجد طلبات معلقة حالياً 🎉';
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
-                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
+            if (!globalOrders || globalOrders.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">لا توجد طلبات للعرض</td></tr>`;
                 return;
             }
 
-            let tableHtml = '';
-            let cardsHtml = '';
-
-            orders.forEach(order => {
-                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+            let html = '';
+            globalOrders.forEach(order => {
                 const total = Number(order.total_amount || 0).toFixed(2);
                 
-                const statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
-                const approveBtnClass = `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
-                const approveBtnText = `✅ اعتماد الفاتورة`;
-
-                cardsHtml += `
-                <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="font-black text-slate-900 text-sm">طلب #${order.id_web_order}</span>
-                            ${statusBadge}
-                        </div>
-                        <span class="text-blue-600 font-extrabold text-sm">${total} ج.س</span>
-                    </div>
-                    
-                    <div class="text-xs space-y-1">
-                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
-                        <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
-                        <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
-                    </div>
-
-                    <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 space-y-2">
-                        <span class="text-[11px] font-bold text-indigo-900 block">بيانات المسوق والتحويل:</span>
-                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                    </div>
-
-                    <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100">
-                        <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            ${approveBtnText}
-                        </button>
-                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            ✏️ تعديل / معاينة
-                        </button>
-                        <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            🗑️ حذف
-                        </button>
-                    </div>
-                </div>`;
-
-                tableHtml += `
-                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
+                html += `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
-                    <td class="p-4">
-                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
-                    </td>
-                    <td class="p-4">
-                        <div class="space-y-1.5">
-                            <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                        </div>
-                    </td>
-                    <td class="p-4">${statusBadge}</td>
-                    <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
-                    <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
-                    <td class="p-4">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-1.5 px-2.5 rounded-lg text-xs transition">
-                                ${approveBtnText}
-                            </button>
-                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">✏️ تعديل</button>
-                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">🗑️</button>
-                        </div>
+                    <td class="p-4 font-bold text-gray-800">${order.client_name || 'بدون اسم'}</td>
+                    <td class="p-4 text-emerald-600 font-semibold dir-ltr text-right">${order.client_phone || '-'}</td>
+                    <td class="p-4 text-gray-500 font-semibold dir-ltr text-right">${order.client_second_phone || '-'}</td>
+                    <td class="p-4 text-gray-600">${order.client_address || '-'}</td>
+                    <td class="p-4 font-black text-blue-600">${total} ج.س</td>
+                    <td class="p-4 text-center">
+                        <button onclick="openEditModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
+                            ✏️ تعديل بيانات العميل
+                        </button>
                     </td>
                 </tr>`;
             });
 
-            tbody.innerHTML = tableHtml;
-            mobileList.innerHTML = cardsHtml;
+            tbody.innerHTML = html;
         }
 
-        function openInvoiceModal(orderId) {
-            const order = globalOrders.find(o => o.id_web_order === orderId);
-            if (!order) return;
+        // 3. فتح نافذة التعديل وتعبئة البيانات
+        function openEditModal(orderId) {
+            selectedOrder = globalOrders.find(o => o.id_web_order === orderId);
+            if (!selectedOrder) return;
 
-            currentActiveOrder = JSON.parse(JSON.stringify(order));
-            if(!currentActiveOrder.web_order_details) currentActiveOrder.web_order_details = [];
+            document.getElementById('modalOrderId').textContent = `#${selectedOrder.id_web_order}`;
+            document.getElementById('inputClientName').value = selectedOrder.client_name || '';
+            document.getElementById('inputClientPhone').value = selectedOrder.client_phone || '';
+            document.getElementById('inputClientSecondPhone').value = selectedOrder.client_second_phone || '';
+            document.getElementById('inputClientAddress').value = selectedOrder.client_address || '';
 
-            renderModalContent();
-            document.getElementById('invoiceModal').classList.remove('hidden');
+            document.getElementById('editClientModal').classList.remove('hidden');
         }
 
-        function renderModalContent() {
-            const order = currentActiveOrder;
-            const modalContent = document.getElementById('modalInvoiceCard');
-
-            let detailsHtml = '';
-            let calcTotal = 0;
-
-            if (order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach((item, index) => {
-                    const lineAmount = (Number(item.qte) || 0) * (Number(item.price) || 0);
-                    item.amount = lineAmount;
-                    calcTotal += lineAmount;
-
-                    detailsHtml += `
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                        <div class="flex-1">
-                            <label class="block text-[10px] font-bold text-gray-500">اسم المنتج</label>
-                            <input type="text" value="${item.product_name || ''}" 
-                                oninput="updateItemField(${index}, 'product_name', this.value)"
-                                class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-blue-500 bg-white">
-                        </div>
-                        <div class="w-20">
-                            <label class="block text-[10px] font-bold text-gray-500">الكمية</label>
-                            <input type="number" min="1" value="${item.qte || 1}" 
-                                oninput="updateItemField(${index}, 'qte', this.value)"
-                                class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-center focus:ring-1 focus:ring-blue-500 bg-white">
-                        </div>
-                        <div class="w-28">
-                            <label class="block text-[10px] font-bold text-gray-500">السعر</label>
-                            <input type="number" min="0" step="0.01" value="${item.price || 0}" 
-                                oninput="updateItemField(${index}, 'price', this.value)"
-                                class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-center focus:ring-1 focus:ring-blue-500 bg-white">
-                        </div>
-                        <div class="w-24 text-center sm:text-right pt-2 sm:pt-0">
-                            <span class="block text-[10px] font-bold text-gray-400">الإجمالي</span>
-                            <span class="text-xs font-black text-blue-600">${lineAmount.toFixed(2)}</span>
-                        </div>
-                        <div class="flex items-end justify-center pt-1 sm:pt-0">
-                            <button onclick="removeItemFromOrder(${index})" class="text-rose-600 hover:bg-rose-100 p-1.5 rounded-lg text-xs transition" title="حذف المنتج">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>`;
-                });
-            } else {
-                detailsHtml = `<p class="text-center text-gray-400 text-xs py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">لا توجد منتجات بالطلب حالياً</p>`;
-            }
-
-            order.total_amount = calcTotal;
-
-            modalContent.innerHTML = `
-            <div id="printableInvoice" class="space-y-6">
-                <!-- قسم بيانات العميل قابلة للتعديل المباشر -->
-                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                    <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-200 pb-2">👤 بيانات العميل (قابل للتعديل)</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">اسم العميل:</label>
-                            <input type="text" value="${order.client_name || ''}" 
-                                oninput="currentActiveOrder.client_name = this.value"
-                                class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white focus:ring-1 focus:ring-slate-900">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">الهاتف الأساسي:</label>
-                            <input type="text" value="${order.client_phone || ''}" 
-                                oninput="currentActiveOrder.client_phone = this.value"
-                                class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold dir-ltr text-right bg-white focus:ring-1 focus:ring-slate-900">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">الهاتف الثانوي:</label>
-                            <input type="text" value="${order.client_second_phone || ''}" 
-                                oninput="currentActiveOrder.client_second_phone = this.value"
-                                class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold dir-ltr text-right bg-white focus:ring-1 focus:ring-slate-900">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">العنوان:</label>
-                            <input type="text" value="${order.client_address || ''}" 
-                                oninput="currentActiveOrder.client_address = this.value"
-                                class="w-full p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white focus:ring-1 focus:ring-slate-900">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- قسم المنتجات -->
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                        <h4 class="font-extrabold text-sm text-slate-800">🛍️ المنتجات بالطلب</h4>
-                        <button onclick="addNewItemToOrder()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition active:scale-95">
-                            ➕ إضافة منتج جديد
-                        </button>
-                    </div>
-
-                    <div class="space-y-2">
-                        ${detailsHtml}
-                    </div>
-
-                    <div class="flex justify-between items-center bg-blue-50 p-4 rounded-xl border border-blue-100 mt-4">
-                        <span class="font-black text-slate-800 text-sm">المبلغ الإجمالي الجديد:</span>
-                        <span class="font-black text-blue-900 text-lg sm:text-xl">${calcTotal.toFixed(2)} ج.س</span>
-                    </div>
-                </div>
-            </div>`;
+        // 4. إغلاق النافذة
+        function closeModal() {
+            document.getElementById('editClientModal').classList.add('hidden');
+            selectedOrder = null;
         }
 
-        function updateItemField(index, field, value) {
-            if (!currentActiveOrder || !currentActiveOrder.web_order_details[index]) return;
-            
-            if (field === 'qte' || field === 'price') {
-                currentActiveOrder.web_order_details[index][field] = Number(value) || 0;
-            } else {
-                currentActiveOrder.web_order_details[index][field] = value;
-            }
+        // 5. حفظ بيانات العميل في Supabase
+        async function handleSaveClient(event) {
+            event.preventDefault();
+            if (!selectedOrder) return;
 
-            renderModalContent();
-        }
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'جاري الحفظ...';
 
-        function removeItemFromOrder(index) {
-            if (!currentActiveOrder) return;
-            currentActiveOrder.web_order_details.splice(index, 1);
-            renderModalContent();
-        }
-
-        function addNewItemToOrder() {
-            if (!currentActiveOrder) return;
-            if (!currentActiveOrder.web_order_details) currentActiveOrder.web_order_details = [];
-
-            currentActiveOrder.web_order_details.push({
-                product_name: "منتج جديد",
-                qte: 1,
-                price: 0,
-                amount: 0
-            });
-
-            renderModalContent();
-        }
-
-        // 2. الحفظ المعتمد والموثوق للتعديلات
-        async function saveOrderDetailsChanges() {
-            if (!currentActiveOrder) return;
+            const updatedData = {
+                client_name: document.getElementById('inputClientName').value,
+                client_phone: document.getElementById('inputClientPhone').value,
+                client_second_phone: document.getElementById('inputClientSecondPhone').value,
+                client_address: document.getElementById('inputClientAddress').value
+            };
 
             try {
-                // أ) تحديث الطلب الرئيسي
-                const { error: orderErr } = await supabaseClient
+                const { error } = await supabaseClient
                     .from('web_orders')
-                    .update({
-                        client_name: currentActiveOrder.client_name,
-                        client_phone: currentActiveOrder.client_phone,
-                        client_second_phone: currentActiveOrder.client_second_phone,
-                        client_address: currentActiveOrder.client_address,
-                        total_amount: currentActiveOrder.total_amount
-                    })
-                    .eq('id_web_order', currentActiveOrder.id_web_order);
-
-                if (orderErr) throw new Error("خطأ تحديث العميل: " + orderErr.message);
-
-                // ب) مسح التفاصيل القديمة بأمان
-                const { error: deleteErr } = await supabaseClient
-                    .from('web_order_details')
-                    .delete()
-                    .eq('id_web_order', currentActiveOrder.id_web_order);
-
-                if (deleteErr) throw new Error("خطأ تحديث المنتجات: " + deleteErr.message);
-
-                // ج) إضافة التفاصيل الجديدة
-                if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
-                    const newDetails = currentActiveOrder.web_order_details.map(item => ({
-                        id_web_order: currentActiveOrder.id_web_order,
-                        id_product: item.id_product || null,
-                        product_name: item.product_name,
-                        qte: item.qte,
-                        price: item.price,
-                        amount: (Number(item.qte) || 0) * (Number(item.price) || 0)
-                    }));
-
-                    const { error: insertErr } = await supabaseClient
-                        .from('web_order_details')
-                        .insert(newDetails);
-
-                    if (insertErr) throw new Error("خطأ إضافة المنتجات: " + insertErr.message);
-                }
-
-                alert("تم حفظ التعديلات بنجاح 🎉");
-                closeInvoiceModal();
-                fetchOrders();
-
-            } catch (err) {
-                console.error("خطأ الحفظ:", err);
-                alert("تعذر الحفظ: " + err.message);
-            }
-        }
-
-        async function deleteOrder(orderId) {
-            if (!confirm("هل أنت تأكد من رغبتك في حذف هذا الطلب نهائياً؟")) return;
-
-            try {
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
+                    .update(updatedData)
+                    .eq('id_web_order', selectedOrder.id_web_order);
 
                 if (error) throw error;
 
-                alert("تم حذف الطلب بنجاح.");
-                fetchOrders();
-            } catch (err) {
-                console.error("خطأ أثناء الحذف:", err);
-                alert("فشل حذف الطلب: " + err.message);
-            }
-        }
+                alert('✅ تم حفظ بيانات العميل بنجاح');
+                closeModal();
+                fetchOrders(); // إعادة جلب البيانات لتحديث الجدول
 
-        function closeInvoiceModal() {
-            document.getElementById('invoiceModal').classList.add('hidden');
-            currentActiveOrder = null;
+            } catch (err) {
+                console.error("خطأ أثناء الحفظ:", err);
+                alert('❌ تعذر الحفظ: ' + err.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 حفظ البيانات';
+            }
         }
 
         window.onload = fetchOrders;
