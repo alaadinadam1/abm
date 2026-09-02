@@ -122,7 +122,6 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // إدارة التخزين المحلي
         function getSavedExtraData() {
             try {
                 return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
@@ -139,7 +138,7 @@
             }
         }
 
-        // 1. جلب الطلبات من قاعدة البيانات
+        // 1. جلب الطلبات بطلب مبسط لتفادي أخطاء الربط الخارجية
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -152,11 +151,7 @@
                             product_name,
                             qte,
                             price,
-                            amount,
-                            products (
-                                id_product,
-                                commission
-                            )
+                            amount
                         )
                     `)
                     .order('date_created', { ascending: false });
@@ -166,7 +161,6 @@
                 const savedExtra = getSavedExtraData();
                 globalOrders = orders || [];
 
-                // دمج البيانات المحفوظة محلياً
                 globalOrders.forEach(o => {
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
@@ -179,12 +173,10 @@
 
             } catch (err) {
                 console.error("خطأ عند جلب الطلبات:", err);
-                const errMsg = err.message || err.error_description || JSON.stringify(err);
-                alert("فشل جلب البيانات: " + errMsg);
+                alert("فشل جلب البيانات: " + (err.message || JSON.stringify(err)));
             }
         }
 
-        // 2. تحديث واجهة المستخدم
         function renderUI() {
             const pendingOrders = globalOrders.filter(o => !o.is_approved);
             const grandTotal = pendingOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
@@ -192,7 +184,6 @@
             renderOrders(pendingOrders);
         }
 
-        // 3. تحديث بيانات المسوق
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -206,7 +197,6 @@
             }
         }
 
-        // 4. اعتماد الطلب
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -231,11 +221,10 @@
                     .update({ is_approved: newApprovedState })
                     .eq('id_web_order', orderId);
             } catch (e) {
-                console.log("تم حفظ حالة الاعتماد محلياً بنجاح.");
+                console.log("تم حفظ حالة الاعتماد محلياً.");
             }
         }
 
-        // 5. رسم جدول الطلبات والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
@@ -258,7 +247,6 @@
                 const approveBtnClass = `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
                 const approveBtnText = `✅ اعتماد الفاتورة`;
 
-                // كروت الشاشات الصغيرة
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -303,7 +291,6 @@
                     </div>
                 </div>`;
 
-                // جدول الكمبيوتر
                 tableHtml += `
                 <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
@@ -344,19 +331,15 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 6. فتح النافذة وعرض البيانات للتعديل
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
 
-            // أخذ نسخة عميقة لتجنب تعديل البيانات المباشرة قبل الحفظ
             currentActiveOrder = JSON.parse(JSON.stringify(order));
-
             renderModalContent();
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
 
-        // رسم محتوى النافذة المنبثقة للعميل والمنتجات
         function renderModalContent() {
             const order = currentActiveOrder;
             const modalContent = document.getElementById('modalInvoiceCard');
@@ -375,19 +358,19 @@
                         <div class="flex-1">
                             <label class="block text-[10px] font-bold text-gray-500">اسم المنتج</label>
                             <input type="text" value="${item.product_name || ''}" 
-                                onchange="updateItemField(${index}, 'product_name', this.value)"
+                                oninput="updateItemField(${index}, 'product_name', this.value)"
                                 class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-blue-500 bg-white">
                         </div>
                         <div class="w-20">
                             <label class="block text-[10px] font-bold text-gray-500">الكمية</label>
                             <input type="number" min="1" value="${item.qte || 1}" 
-                                onchange="updateItemField(${index}, 'qte', this.value)"
+                                oninput="updateItemField(${index}, 'qte', this.value)"
                                 class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-center focus:ring-1 focus:ring-blue-500 bg-white">
                         </div>
                         <div class="w-28">
                             <label class="block text-[10px] font-bold text-gray-500">السعر</label>
                             <input type="number" min="0" step="0.01" value="${item.price || 0}" 
-                                onchange="updateItemField(${index}, 'price', this.value)"
+                                oninput="updateItemField(${index}, 'price', this.value)"
                                 class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold text-center focus:ring-1 focus:ring-blue-500 bg-white">
                         </div>
                         <div class="w-28 text-center sm:text-right pt-2 sm:pt-0">
@@ -409,7 +392,6 @@
 
             modalContent.innerHTML = `
             <div id="printableInvoice" class="space-y-6">
-                <!-- قسم بيانات العميل -->
                 <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                     <h4 class="font-extrabold text-sm text-slate-800 border-b border-slate-200 pb-2">👤 تعديل بيانات العميل</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -440,7 +422,6 @@
                     </div>
                 </div>
 
-                <!-- قسم المنتجات -->
                 <div class="space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-200 pb-2">
                         <h4 class="font-extrabold text-sm text-slate-800">🛍️ المنتجات بالطلب</h4>
@@ -453,7 +434,6 @@
                         ${detailsHtml}
                     </div>
 
-                    <!-- إجمالي الفاتورة -->
                     <div class="flex justify-between items-center bg-blue-50 p-4 rounded-xl border border-blue-100 mt-4">
                         <span class="font-black text-slate-800 text-sm">المبلغ الإجمالي الجديد:</span>
                         <span class="font-black text-blue-900 text-lg sm:text-xl">${calcTotal.toFixed(2)} ج.س</span>
@@ -462,7 +442,6 @@
             </div>`;
         }
 
-        // تحديث حقل في تفاصيل المنتج
         function updateItemField(index, field, value) {
             if (!currentActiveOrder || !currentActiveOrder.web_order_details[index]) return;
             
@@ -475,14 +454,12 @@
             renderModalContent();
         }
 
-        // حذف منتج من الطلب
         function removeItemFromOrder(index) {
             if (!currentActiveOrder) return;
             currentActiveOrder.web_order_details.splice(index, 1);
             renderModalContent();
         }
 
-        // إضافة منتج جديد فارغ للطلب
         function addNewItemToOrder() {
             if (!currentActiveOrder) return;
             if (!currentActiveOrder.web_order_details) currentActiveOrder.web_order_details = [];
@@ -497,12 +474,12 @@
             renderModalContent();
         }
 
-        // 7. حفظ كافة التعديلات في قاعدة البيانات (Supabase)
+        // 7. حفظ التعديلات وإدراجها مع تجنب المشاكل الحقلية
         async function saveOrderDetailsChanges() {
             if (!currentActiveOrder) return;
 
             try {
-                // أ) تحديث البيانات الرئيسية للطلب (بيانات العميل والإجمالي)
+                // أ) تحديث الطلب الرئيسي
                 const { error: orderErr } = await supabaseClient
                     .from('web_orders')
                     .update({
@@ -516,7 +493,7 @@
 
                 if (orderErr) throw orderErr;
 
-                // ب) حذف تفاصيل المنتجات القديمة الخاصة بهذا الطلب
+                // ب) حذف تفاصيل المنتجات القائمة
                 const { error: deleteErr } = await supabaseClient
                     .from('web_order_details')
                     .delete()
@@ -524,11 +501,10 @@
 
                 if (deleteErr) throw deleteErr;
 
-                // ج) إعادة إدراج تفاصيل المنتجات المعدلة
+                // ج) إعادة إدراج التفاصيل المعدلة
                 if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
                     const newDetails = currentActiveOrder.web_order_details.map(item => ({
                         id_web_order: currentActiveOrder.id_web_order,
-                        id_product: item.id_product || null,
                         product_name: item.product_name,
                         qte: item.qte,
                         price: item.price,
@@ -544,7 +520,7 @@
 
                 alert("تم حفظ التعديلات بنجاح 🎉");
                 closeInvoiceModal();
-                fetchOrders(); // إعادة جلب البيانات لتحديث القوائم
+                fetchOrders();
 
             } catch (err) {
                 console.error("خطأ أثناء حفظ التعديلات:", err);
@@ -552,14 +528,11 @@
             }
         }
 
-        // 8. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm("هل أنت تأكد من رغبتك في حذف هذا الطلب نهائياً؟")) return;
 
             try {
-                // حذف التفاصيل أولاً
                 await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                // حذف الطلب
                 const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
 
                 if (error) throw error;
@@ -572,13 +545,11 @@
             }
         }
 
-        // إغلاق نافذة الفاتورة
         function closeInvoiceModal() {
             document.getElementById('invoiceModal').classList.add('hidden');
             currentActiveOrder = null;
         }
 
-        // تشغيل الجلب التلقائي عند تحميل الصفحة
         window.onload = fetchOrders;
     </script>
 </body>
