@@ -143,7 +143,7 @@
             }
         }
 
-        // 1. جلب الطلبات من قواعد البيانات مع جلب عمولة المنتج لحساب العمولة المستحقة
+        // 1. جلب الطلبات مباشرة مع التفاصيل
         async function fetchOrders() {
             try {
                 // جلب الطلبات الأساسية
@@ -159,60 +159,33 @@
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
                     
-                    // جلب تفاصيل الطلب مع جلب حقل العمولة commission من جدول products
+                    // جلب تفاصيل الطلب مباشرة مع حقل العمولة المخزن في web_order_details
                     const { data: details, error: detailsError } = await supabaseClient
                         .from('web_order_details')
-                        .select('*, products(commission)')
+                        .select('*')
                         .in('id_web_order', orderIds);
 
-                    if (detailsError) {
-                        // محاولة بديلة إذا كان الربط العلاقات المباشر غير معرف بكود أجنبي صريح
-                        const { data: detailsFallback } = await supabaseClient
-                            .from('web_order_details')
-                            .select('*')
-                            .in('id_web_order', orderIds);
+                    if (detailsError) throw detailsError;
 
-                        const { data: products } = await supabaseClient
-                            .from('products')
-                            .select('id_product, commission');
+                    const detailsMap = {};
+                    (details || []).forEach(d => {
+                        if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
+                        detailsMap[d.id_web_order].push(d);
+                    });
 
-                        const productCommissionMap = {};
-                        (products || []).forEach(p => {
-                            productCommissionMap[p.id_product] = p.commission || 0;
-                        });
-
-                        const detailsMap = {};
-                        (detailsFallback || []).forEach(d => {
-                            d.item_commission = productCommissionMap[d.id_product] || 0;
-                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
-                            detailsMap[d.id_web_order].push(d);
-                        });
-
-                        fetchedOrders.forEach(o => {
-                            o.web_order_details = detailsMap[o.id_web_order] || [];
-                        });
-                    } else {
-                        const detailsMap = {};
-                        (details || []).forEach(d => {
-                            d.item_commission = d.products ? (d.products.commission || 0) : 0;
-                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
-                            detailsMap[d.id_web_order].push(d);
-                        });
-
-                        fetchedOrders.forEach(o => {
-                            o.web_order_details = detailsMap[o.id_web_order] || [];
-                        });
-                    }
+                    fetchedOrders.forEach(o => {
+                        o.web_order_details = detailsMap[o.id_web_order] || [];
+                    });
                 }
 
                 const savedExtra = getSavedExtraData();
                 globalOrders = fetchedOrders;
 
-                // احتساب العمولة المستحقة لجميع العناصر بالطلب
+                // احتساب العمولة المستحقة بناءً على حقل commission الموجود في جدول التفاصيل مباشرة
                 globalOrders.forEach(o => {
                     const calculatedCommission = (o.web_order_details || []).reduce((sum, item) => {
                         const qte = Number(item.qte || 1);
-                        const comm = Number(item.item_commission || 0);
+                        const comm = Number(item.commission || 0);
                         return sum + (qte * comm);
                     }, 0);
 
@@ -330,7 +303,7 @@
                 order.web_order_details.forEach(item => {
                     const price = Number(item.price || 0).toFixed(2);
                     const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
-                    const itemComm = Number(item.item_commission || 0);
+                    const itemComm = Number(item.commission || 0);
 
                     detailsHtml += `
                     <tr class="border-b border-gray-100 text-xs">
@@ -375,7 +348,7 @@
                     </div>
                 </div>
 
-                <!-- خانة العمولة المستحقة بوضوح -->
+                <!-- خانة العمولة المستحقة -->
                 <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs flex justify-between items-center">
                     <span class="font-bold text-amber-900">💵 العمولة المستحقة للطلب:</span>
                     <span class="font-black text-amber-700 text-base">${totalCommission} ج.س</span>
