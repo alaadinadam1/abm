@@ -61,7 +61,7 @@
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
-                            <th class="p-4">العميل والهاتف</th>
+                            <th class="p-4">العميل وأرقام الهواتف</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
                             <th class="p-4">العمولة المستحقة</th>
                             <th class="p-4">الحالة</th>
@@ -126,7 +126,6 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // إدارة التخزين المحلي لبيانات المسوقين والبنك
         function getSavedExtraData() {
             try {
                 return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
@@ -143,7 +142,6 @@
             }
         }
 
-        // جلب البيانات تماماً مثل ملف الطلبات (web_admin.html) مع الفلترة للاعتماد
         async function fetchApprovedInvoices() {
             try {
                 const { data: orders, error: ordersError } = await supabaseClient
@@ -182,7 +180,6 @@
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
                     
-                    // إذا لم يتم تحديد حالة الاعتماد مسبقاً، نعتمد الحقل القادم من السيرفر أو نجعله false
                     if (extra.isApproved !== undefined) {
                         o.is_approved = extra.isApproved;
                     }
@@ -197,7 +194,6 @@
         }
 
         function renderUI() {
-            // عرض الطلبات المعتمدة فقط في هذه الصفحة
             const approvedOrders = globalOrders.filter(o => o.is_approved === true);
 
             const grandTotal = approvedOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
@@ -222,7 +218,6 @@
             }
         }
 
-        // تبديل حالة الاعتماد وإرسال التحديث للسيرفر
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -307,8 +302,16 @@
                         <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
                     </div>
                     <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف:</span>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الأساسي:</span>
                         <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الثاني:</span>
+                        <span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">العمولة المستحقة:</span>
+                        <span class="font-bold text-purple-600 block">${order.commission || '0.00'} ج.س</span>
                     </div>
                     <div class="col-span-2">
                         <span class="text-gray-500 block text-[10px]">العنوان:</span>
@@ -358,7 +361,7 @@
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
@@ -381,6 +384,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
+                const commissionVal = order.commission ? `${order.commission} ج.س` : '-';
                 
                 const statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`;
                 const approveBtnClass = `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`;
@@ -399,8 +403,9 @@
                     
                     <div class="text-xs space-y-1">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${order.client_second_phone || 'لا يوجد رقم ثانٍ'}</div>
+                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 الأساسي: ${order.client_phone || '-'}</div>
+                        <div class="text-indigo-600 dir-ltr text-right font-semibold">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
+                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة المستحقة: ${commissionVal}</div>
                         <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
@@ -438,7 +443,7 @@
                     <td class="p-4">
                         <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
                         <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-gray-500 text-xs dir-ltr">📞 ${order.client_second_phone || '-'}</div>
+                        <div class="text-indigo-600 text-xs dir-ltr font-semibold">📞 ${order.client_second_phone || 'لا يوجد'}</div>
                     </td>
                     <td class="p-4">
                         <div class="space-y-1.5">
@@ -453,7 +458,7 @@
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         </div>
                     </td>
-                    <td class="p-4 font-semibold text-indigo-600">-</td>
+                    <td class="p-4 font-bold text-purple-700">${commissionVal}</td>
                     <td class="p-4">${statusBadge}</td>
                     <td class="p-4 font-extrabold text-emerald-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
