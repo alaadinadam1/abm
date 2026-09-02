@@ -119,15 +119,25 @@
 
         let globalOrders = [];
         let currentActiveOrder = null;
-        let activeMarketerData = { fullname: 'غير محدد', bank_account: 'غير مسجل' };
 
-        // 1. جلب الطلبات
+        // 1. جلب الطلبات وقيمة العمولة المباشرة مع بيانات المسوق/المستخدم من tb_users
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
-                        *,
+                        id_web_order,
+                        client_name,
+                        client_phone,
+                        client_second_phone,
+                        client_address,
+                        total_amount,
+                        date_created,
+                        tb_users (
+                            username,
+                            fullname,
+                            bank_account
+                        ),
                         web_order_details (
                             id_product,
                             product_name,
@@ -224,7 +234,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 3. حساب العمولة
+        // 3. دالة حساب العمولة الفعلية بالضرب في كمية المنتج
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -247,45 +257,23 @@
             return totalCommission;
         }
 
-        // 4. جلب البيانات مباشرة من جدول tb_users باستخدام id و usertype
-        async function fetchMarketerData(order) {
-            // المعرف المسجل في جدول الطلبات المرتبط بجدول tb_users
-            const userId = order.id || order.id_user || order.user_id;
-
-            if (userId) {
-                try {
-                    const { data: userData, error } = await supabaseClient
-                        .from('tb_users')
-                        .select('id, username, usertype, fullname, bank_account')
-                        .eq('id', userId)
-                        .maybeSingle();
-
-                    if (!error && userData) {
-                        return {
-                            fullname: userData.fullname || userData.username || 'غير محدد',
-                            bank_account: userData.bank_account || 'غير مسجل'
-                        };
-                    }
-                } catch (e) {
-                    console.error("خطأ استعلام tb_users:", e);
-                }
-            }
-
-            return { fullname: 'غير محدد', bank_account: 'غير مسجل' };
-        }
-
-        // 5. فتح المعاينة وتطبيق البيانات
-        async function openInvoiceModal(orderId) {
+        // 4. عرض الفاتورة متضمنة بيانات المسوق وقرائه البنكية
+        function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
 
             currentActiveOrder = order;
-            
-            // جلب البيانات مباشرة وبدقة من tb_users
-            activeMarketerData = await fetchMarketerData(order);
-
             const date = order.date_created ? new Date(order.date_created).toLocaleDateString('ar-SD', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const time = order.date_created ? new Date(order.date_created).toLocaleTimeString('ar-SD', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            // استخراج بيانات المسوق بأمان سواء كانت Object أو Array
+            let userObj = order.tb_users;
+            if (Array.isArray(userObj) && userObj.length > 0) {
+                userObj = userObj[0];
+            }
+            
+            const userName = userObj?.fullname || userObj?.username || 'غير محدد';
+            const bankAccount = userObj?.bank_account || 'غير مسجل';
 
             let itemsRows = '';
             const realCommission = getRealCommission(order);
@@ -324,32 +312,29 @@
                         </div>
                     </div>
 
-                    <!-- بيانات العميل والمسوق -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 space-y-1.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
-                                <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
-                            </div>
-                            <div class="h-px bg-slate-200/60 my-1"></div>
-                            <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                                <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
-                                <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
-                                <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
-                            </div>
+                    <div class="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-100 text-xs space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] sm:text-[10px] font-extrabold text-slate-400 uppercase">العميل</span>
+                            <span class="text-xs font-bold text-gray-900">${order.client_name || 'عميل نقدي'}</span>
                         </div>
+                        <div class="h-px bg-slate-200/60 my-1"></div>
+                        <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
+                            <div><b class="text-slate-800">📱 الهاتف الرئيسي:</b> <span class="dir-ltr font-semibold text-emerald-700">${order.client_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-800">📞 الهاتف الثانوي:</b> <span class="dir-ltr font-semibold text-slate-700">${order.client_second_phone || 'غير مسجل'}</span></div>
+                            <div><b class="text-slate-800">📍 العنوان:</b> ${order.client_address || 'لم يحدد'}</div>
+                        </div>
+                    </div>
 
-                        <!-- البيانات المجلوبة مباشرة من tb_users -->
-                        <div class="bg-indigo-50/60 p-3 sm:p-4 rounded-xl border border-indigo-100 space-y-1.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[9px] sm:text-[10px] font-extrabold text-indigo-500 uppercase">بيانات المسوق</span>
-                                <span class="text-xs font-bold text-indigo-950">${activeMarketerData.fullname}</span>
-                            </div>
-                            <div class="h-px bg-indigo-200/50 my-1"></div>
-                            <div class="space-y-1 text-slate-600 text-[11px] sm:text-xs">
-                                <div><b class="text-slate-800">👤 اسم المسوق:</b> <span class="font-bold text-indigo-900">${activeMarketerData.fullname}</span></div>
-                                <div><b class="text-slate-800">💳 الحساب البنكي:</b> <span class="font-bold text-slate-900 dir-ltr inline-block">${activeMarketerData.bank_account}</span></div>
-                            </div>
+                    <!-- قسم بيانات المسوق البنكية -->
+                    <div class="bg-indigo-50/60 p-3 sm:p-4 rounded-xl border border-indigo-100 text-xs space-y-1">
+                        <div class="text-[10px] font-extrabold text-indigo-500 uppercase tracking-wider mb-1">بيانات المسوق والتحويل</div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-600 font-medium">اسم المسوق:</span>
+                            <span class="font-bold text-indigo-950">${userName}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-600 font-medium">رقم الحساب البنكي:</span>
+                            <span class="font-bold text-indigo-700 dir-ltr tracking-wide">${bankAccount}</span>
                         </div>
                     </div>
 
@@ -394,16 +379,24 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 6. تجهيز النص للواتساب والنسخ
+        // 5. النص المشارك للواتساب والنسخ مع بيانات المسوق الحساب البنكي
         function buildShareText(order, commission) {
+            let userObj = order.tb_users;
+            if (Array.isArray(userObj) && userObj.length > 0) {
+                userObj = userObj[0];
+            }
+            
+            const userName = userObj?.fullname || userObj?.username || '-';
+            const bankAccount = userObj?.bank_account || '-';
+
             let text = `📦 *فاتورة مبيعات طلبية #${order.id_web_order}*\n`;
             text += `👤 *العميل:* ${order.client_name || '-'}\n`;
             text += `📱 *الهاتف الرئيسي:* ${order.client_phone || '-'}\n`;
             text += `📞 *الهاتف الثانوي:* ${order.client_second_phone || '-'}\n`;
             text += `📍 *العنوان:* ${order.client_address || '-'}\n`;
             text += `------------------------------\n`;
-            text += `🙋‍♂️ *المسوق:* ${activeMarketerData.fullname}\n`;
-            text += `💳 *رقم الحساب البنكي:* ${activeMarketerData.bank_account}\n`;
+            text += `👤 *المسوق:* ${userName}\n`;
+            text += `💳 *الحساب البنكي:* ${bankAccount}\n`;
             text += `------------------------------\n`;
             text += `🛒 *المنتجات:*\n`;
 
@@ -419,7 +412,7 @@
             return text;
         }
 
-        // 7. إرسال إلى الواتساب
+        // 6. فتح الواتساب تلقائياً لاختيار جهة الاتصال
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -429,7 +422,7 @@
             window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
         }
 
-        // 8. نسخ النص
+        // 7. نسخ النص
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const realCommission = getRealCommission(currentActiveOrder);
@@ -440,7 +433,7 @@
             }).catch(() => alert("تعذر النسخ"));
         }
 
-        // 9. حذف الطلب
+        // 8. حذف طلب
         async function deleteOrder(orderId) {
             if (!confirm(`هل أنت تأكد من رغبتك في حذف الطلب رقم #${orderId}؟`)) return;
 
