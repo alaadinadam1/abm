@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة الطلبات - تعديل المنتجات</title>
+    <title>إدارة الطلبات - العميل والمسوق والبيانات البنكية والمنتجات</title>
     <script>
         window.tailwind = { config: { suppressDeprecationWarnings: true } };
     </script>
@@ -21,8 +21,8 @@
         <!-- شريط العنوان -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
-                <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 إدارة الطلبات (الخطوة 2: تعديل المنتجات)</h1>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">مراجعة وتعديل بيانات العميل والمنتجات المرفقة بالطلب</p>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 إدارة الطلبات الشاملة</h1>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">تعديل بيانات العميل، المسوق، الحساب البنكي والمنتجات</p>
             </div>
             
             <button onclick="fetchOrders()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
@@ -38,14 +38,15 @@
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">اسم العميل</th>
-                            <th class="p-4">الهاتف</th>
+                            <th class="p-4">المسوق</th>
+                            <th class="p-4">البنك / الحساب</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4 text-center">الخيارات</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="5" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="6" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -53,17 +54,37 @@
         </div>
     </div>
 
-    <!-- نافذة تعديل بيانات العميل والمنتجات -->
+    <!-- نافذة التعديل -->
     <div id="editOrderModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col border border-gray-100 p-4 sm:p-6 space-y-4 max-h-[90vh] my-auto">
             
             <div class="flex justify-between items-center border-b border-gray-100 pb-3 shrink-0">
-                <h3 class="font-bold text-base text-slate-900">✏️ تعديل الطلب <span id="modalOrderId" class="text-blue-600"></span></h3>
+                <h3 class="font-bold text-base text-slate-900">✏️ تعديل كامل بيانات الطلب <span id="modalOrderId" class="text-blue-600"></span></h3>
                 <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold">✕</button>
             </div>
 
-            <div class="overflow-y-auto space-y-5 grow pr-1">
-                <!-- قسم بيانات العميل -->
+            <div class="overflow-y-auto space-y-4 grow pr-1">
+                
+                <!-- 1. قسم بيانات المسوق والبيانات البنكية -->
+                <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200 space-y-3">
+                    <h4 class="font-bold text-xs text-amber-900 border-b border-amber-200 pb-1.5">📢 المسوق والبيانات البنكية</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-amber-900 mb-1">اسم المسوق:</label>
+                            <input type="text" id="inputMarketerName" placeholder="اسم المسوق..." class="w-full p-2 border border-amber-300 rounded-lg text-xs font-bold bg-white focus:ring-1 focus:ring-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-amber-900 mb-1">اسم البنك:</label>
+                            <input type="text" id="inputBankName" placeholder="مثال: بنك الخرطوم / بنكك" class="w-full p-2 border border-amber-300 rounded-lg text-xs font-bold bg-white focus:ring-1 focus:ring-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-amber-900 mb-1">رقم الحساب البنكي:</label>
+                            <input type="text" id="inputAccountNumber" placeholder="رقم الحساب..." class="w-full p-2 border border-amber-300 rounded-lg text-xs font-bold dir-ltr text-right bg-white focus:ring-1 focus:ring-amber-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. قسم بيانات العميل -->
                 <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
                     <h4 class="font-bold text-xs text-slate-700 border-b border-slate-200 pb-1.5">👤 بيانات العميل</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -86,7 +107,7 @@
                     </div>
                 </div>
 
-                <!-- قسم منتجات الطلب -->
+                <!-- 3. قسم منتجات الطلب -->
                 <div class="space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-200 pb-2">
                         <h4 class="font-bold text-xs text-slate-800">🛍️ منتجات الطلب</h4>
@@ -130,7 +151,7 @@
         let globalOrders = [];
         let editingOrder = null;
 
-        // 1. جلب الطلبات فقط بدون استخدام العلاقات المباشرة المقعدة
+        // 1. جلب الطلبات
         async function fetchOrders() {
             try {
                 const { data, error } = await supabaseClient
@@ -158,23 +179,26 @@
             const tbody = document.getElementById('ordersTableBody');
 
             if (!globalOrders || globalOrders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-8 text-gray-400 font-semibold">لا توجد طلبات للعرض</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-400 font-semibold">لا توجد طلبات للعرض</td></tr>`;
                 return;
             }
 
             let html = '';
             globalOrders.forEach(order => {
                 const total = Number(order.total_amount || 0).toFixed(2);
+                const marketer = order.marketer_name || order.marketer || '-';
+                const bankInfo = (order.bank_name || '-') + (order.account_number ? ` (${order.account_number})` : '');
                 
                 html += `
                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
                     <td class="p-4 font-bold text-gray-800">${order.client_name || 'بدون اسم'}</td>
-                    <td class="p-4 text-emerald-600 font-semibold dir-ltr text-right">${order.client_phone || '-'}</td>
+                    <td class="p-4 font-bold text-amber-700 bg-amber-50/50 rounded-lg">${marketer}</td>
+                    <td class="p-4 text-gray-600 font-semibold dir-ltr text-right">${bankInfo}</td>
                     <td class="p-4 font-black text-blue-600">${total} ج.س</td>
                     <td class="p-4 text-center">
                         <button onclick="openEditModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                            ✏️ تعديل المنتجات والعميل
+                            ✏️ تعديل الطلب بالكامل
                         </button>
                     </td>
                 </tr>`;
@@ -183,7 +207,7 @@
             tbody.innerHTML = html;
         }
 
-        // 3. فتح النافذة وجلب منتجات الطلب المختار بشكل مستقل
+        // 3. فتح نافذة التعديل لتعبئة البيانات الحالية
         async function openEditModal(orderId) {
             const originalOrder = globalOrders.find(o => o.id_web_order === orderId);
             if (!originalOrder) return;
@@ -192,12 +216,18 @@
             editingOrder.web_order_details = [];
 
             document.getElementById('modalOrderId').textContent = `#${editingOrder.id_web_order}`;
+            
+            // تعبئة البيانات في المدخلات
+            document.getElementById('inputMarketerName').value = editingOrder.marketer_name || editingOrder.marketer || '';
+            document.getElementById('inputBankName').value = editingOrder.bank_name || '';
+            document.getElementById('inputAccountNumber').value = editingOrder.account_number || '';
+            
             document.getElementById('inputClientName').value = editingOrder.client_name || '';
             document.getElementById('inputClientPhone').value = editingOrder.client_phone || '';
             document.getElementById('inputClientSecondPhone').value = editingOrder.client_second_phone || '';
             document.getElementById('inputClientAddress').value = editingOrder.client_address || '';
 
-            // جلب منتجات هذا الطلب تحديداً عبر الاستعلام المباشر بـ id_web_order
+            // جلب المنتجات بشكل منفصل للطلب المحدد
             try {
                 const { data: details, error } = await supabaseClient
                     .from('web_order_details')
@@ -210,14 +240,14 @@
                     editingOrder.web_order_details = details;
                 }
             } catch (e) {
-                console.error("خطأ عند تحميل منتجات الطلب:", e);
+                console.error("خطأ عند تحميل المنتجات:", e);
             }
 
             renderProductsList();
             document.getElementById('editOrderModal').classList.remove('hidden');
         }
 
-        // 4. رسم قائمة المنتجات
+        // 4. عرض منتجات الطلب
         function renderProductsList() {
             const container = document.getElementById('productsListContainer');
             let totalAmount = 0;
@@ -299,7 +329,7 @@
             renderProductsList();
         }
 
-        // 5. حفظ التعديلات
+        // 5. حفظ كافة البيانات الحالية بالجدول الرئيسي والفرعي
         async function saveOrderAndProducts() {
             if (!editingOrder) return;
 
@@ -308,10 +338,13 @@
             saveBtn.textContent = 'جاري الحفظ...';
 
             try {
-                // 1) تحديث بيانات العميل وإجمالي المبلغ في web_orders
+                // 1) تحديث جدول web_orders (بيانات العميل، المسوق، البنك، والحساب)
                 const { error: orderErr } = await supabaseClient
                     .from('web_orders')
                     .update({
+                        marketer_name: document.getElementById('inputMarketerName').value,
+                        bank_name: document.getElementById('inputBankName').value,
+                        account_number: document.getElementById('inputAccountNumber').value,
                         client_name: document.getElementById('inputClientName').value,
                         client_phone: document.getElementById('inputClientPhone').value,
                         client_second_phone: document.getElementById('inputClientSecondPhone').value,
@@ -322,7 +355,7 @@
 
                 if (orderErr) throw orderErr;
 
-                // 2) حذف المنتجات القديمة للطلب
+                // 2) إعادة تحديث تفاصيل المنتجات للطلب
                 const { error: deleteErr } = await supabaseClient
                     .from('web_order_details')
                     .delete()
@@ -330,7 +363,6 @@
 
                 if (deleteErr) throw deleteErr;
 
-                // 3) إدخال المنتجات المعدلة
                 if (editingOrder.web_order_details && editingOrder.web_order_details.length > 0) {
                     const rowsToInsert = editingOrder.web_order_details.map(item => ({
                         id_web_order: editingOrder.id_web_order,
@@ -347,12 +379,12 @@
                     if (insertErr) throw insertErr;
                 }
 
-                alert('✅ تم حفظ كافة البيانات والمنتجات بنجاح');
+                alert('✅ تم حفظ البيانات (المسوق، العميل، البنك، والحساب والمنتجات) بنجاح');
                 closeModal();
                 fetchOrders();
 
             } catch (err) {
-                console.error("خطأ أثناء حفظ التعديلات:", err);
+                console.error("خطأ أثناء الحفظ:", err);
                 alert('❌ تعذر الحفظ: ' + (err.message || JSON.stringify(err)));
             } finally {
                 saveBtn.disabled = false;
