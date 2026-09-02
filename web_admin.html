@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>إدارة طلبات الموقع</title>
+    <title>إدارة طلبات وفواتير الموقع</title>
     <!-- إغلاق تحذيرات Tailwind CDN -->
     <script>
         window.tailwind = { config: { suppressDeprecationWarnings: true } };
@@ -33,13 +33,13 @@
         <!-- شريط العنوان والبطاقات الإحصائية -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
-                <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 لوحة التحكم: إدارة الطلبات</h1>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">متابعة طلبات العملاء واعتماد الفواتير وطباعتها</p>
+                <h1 id="pageTitle" class="text-xl sm:text-2xl font-black text-slate-900">📦 الطلبات المعلقة (قيد الانتظار)</h1>
+                <p id="pageSubTitle" class="text-[11px] sm:text-xs text-gray-500 mt-0.5">الطلبات الجديدة التي تنتظر المراجعة والاعتماد</p>
             </div>
             
             <div class="flex items-center gap-3 w-full sm:w-auto">
                 <div class="bg-blue-50 border border-blue-100 px-4 py-2 rounded-xl text-right flex-1 sm:flex-none">
-                    <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">إجمالي المشتريات</span>
+                    <span id="totalLabel" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">إجمالي الطلبات المعلقة</span>
                     <span id="totalRevenue" class="text-lg sm:text-xl font-black text-blue-900">0.00 ج.س</span>
                 </div>
                 
@@ -47,6 +47,16 @@
                     🔄 <span class="hidden sm:inline">تحديث البيانات</span>
                 </button>
             </div>
+        </div>
+
+        <!-- أزرار التبويب للتنقل بين الصفحات -->
+        <div class="flex bg-gray-200/80 p-1.5 rounded-2xl max-w-md mx-auto sm:mx-0 font-bold text-xs">
+            <button id="tabPending" onclick="switchTab('pending')" class="flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm">
+                ⏳ الطلبات المعلقة <span id="pendingBadge" class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] mr-1">0</span>
+            </button>
+            <button id="tabApproved" onclick="switchTab('approved')" class="flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900">
+                📜 الفواتير المعتمدة <span id="approvedBadge" class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] mr-1">0</span>
+            </button>
         </div>
 
         <!-- عرض كروت الجوال -->
@@ -124,8 +134,9 @@
 
         let globalOrders = [];
         let currentActiveOrder = null;
+        let currentTab = 'pending'; // 'pending' أو 'approved'
 
-        // إدارة التخزين المحلي لضمان عدم ضياع البيانات المكتوبة
+        // إدارة التخزين المحلي
         function getSavedExtraData() {
             try {
                 return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
@@ -142,7 +153,7 @@
             }
         }
 
-        // 1. جلب الطلبات من قواعد البيانات مباشرة
+        // 1. جلب الطلبات من قواعد البيانات
         async function fetchOrders() {
             try {
                 const { data: orders, error } = await supabaseClient
@@ -166,10 +177,9 @@
                 if (error) throw error;
 
                 const savedExtra = getSavedExtraData();
-
                 globalOrders = orders || [];
 
-                // دمج البيانات الآتية من السيرفر مع البيانات المحفوظة محلياً
+                // دمج البيانات المحفوظة محلياً
                 globalOrders.forEach(o => {
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
@@ -178,10 +188,7 @@
                     o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
                 });
 
-                const grandTotal = globalOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-                document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
-
-                renderOrders(globalOrders);
+                renderUI();
 
             } catch (err) {
                 console.error("خطأ عند جلب الطلبات:", err);
@@ -190,7 +197,49 @@
             }
         }
 
-        // 2. تحديث بيانات المسوق والبنك في الذاكرة والمحفظة المحلية
+        // 2. التبديل بين التبويبات
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            const btnPending = document.getElementById('tabPending');
+            const btnApproved = document.getElementById('tabApproved');
+            
+            if (tab === 'pending') {
+                btnPending.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm";
+                btnApproved.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900";
+                document.getElementById('pageTitle').textContent = "📦 الطلبات المعلقة (قيد الانتظار)";
+                document.getElementById('pageSubTitle').textContent = "الطلبات الجديدة التي تنتظر المراجعة والاعتماد";
+                document.getElementById('totalLabel').textContent = "إجمالي الطلبات المعلقة";
+            } else {
+                btnApproved.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center bg-white text-slate-900 shadow-sm";
+                btnPending.className = "flex-1 py-2.5 px-4 rounded-xl transition text-center text-gray-600 hover:text-slate-900";
+                document.getElementById('pageTitle').textContent = "📜 الفواتير المعتمدة";
+                document.getElementById('pageSubTitle').textContent = "سجل الفواتير التي تم اعتمادها وجاهزة للطباعة والتعامل";
+                document.getElementById('totalLabel').textContent = "إجمالي الفواتير المعتمدة";
+            }
+
+            renderUI();
+        }
+
+        // 3. تحديث واجهة المستخدم بناءً على التبويب الحالي
+        function renderUI() {
+            const pendingOrders = globalOrders.filter(o => !o.is_approved);
+            const approvedOrders = globalOrders.filter(o => !!o.is_approved);
+
+            // تحديث عداد الشارات (Badges)
+            document.getElementById('pendingBadge').textContent = pendingOrders.length;
+            document.getElementById('approvedBadge').textContent = approvedOrders.length;
+
+            const activeList = currentTab === 'pending' ? pendingOrders : approvedOrders;
+
+            // حساب الإجمالي للصفحة الحالية
+            const grandTotal = activeList.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+            document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
+
+            renderOrders(activeList);
+        }
+
+        // 4. تحديث بيانات المسوق
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -207,7 +256,7 @@
             }
         }
 
-        // 3. اعتماد أو إلغاء اعتماد الطلب
+        // 5. اعتماد أو إلغاء اعتماد الطلب (الانتقال التلقائي بين القوائم)
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -221,13 +270,14 @@
             savedExtra[orderId].isApproved = newApprovedState;
             saveExtraData(savedExtra);
 
-            renderOrders(globalOrders);
+            // تحديث الواجهة فوراً ليختفي الطلب ويذهب للقسم المناسب
+            renderUI();
 
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
                 openInvoiceModal(orderId);
             }
 
-            // محاولة تحديث السيرفر إن أمكن
+            // تحديث السيرفر
             try {
                 await supabaseClient
                     .from('web_orders')
@@ -238,15 +288,18 @@
             }
         }
 
-        // 4. رسم جدول الطلبات والكروت
+        // 6. رسم جدول الطلبات والكروت
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
 
             if (!orders || orders.length === 0) {
-                const emptyHtml = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl border border-gray-100">لا توجد طلبات مسجلة حالياً.</div>`;
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400">لا توجد طلبات مسجلة حالياً.</td></tr>`;
-                mobileList.innerHTML = emptyHtml;
+                const emptyMsg = currentTab === 'pending' 
+                    ? 'لا توجد طلبات معلقة حالياً 🎉' 
+                    : 'لا توجد فواتير معتمدة حتى الآن 📜';
+
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
+                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
                 return;
             }
 
@@ -266,7 +319,7 @@
                     ? `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`
                     : `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
 
-                const approveBtnText = isApproved ? `⏳ إلغاء الاعتماد` : `✅ اعتماد الطلب`;
+                const approveBtnText = isApproved ? `↩️ إلغاء الاعتماد` : `✅ اعتماد الفاتورة`;
 
                 // كروت الشاشات الصغيرة (الجوال)
                 cardsHtml += `
@@ -305,7 +358,7 @@
                             ${approveBtnText}
                         </button>
                         <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            👁️ المعاينة
+                            👁️ معاينة
                         </button>
                         <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
                             🗑️ حذف
@@ -341,7 +394,7 @@
                     <td class="p-4">
                         <div class="flex items-center justify-center gap-1.5">
                             <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-1.5 px-2.5 rounded-lg text-xs transition">
-                                ${isApproved ? '⏳ إلغاء' : '✅ اعتماد'}
+                                ${approveBtnText}
                             </button>
                             <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">👁️ عرض</button>
                             <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">🗑️</button>
@@ -354,7 +407,7 @@
             mobileList.innerHTML = cardsHtml;
         }
 
-        // 5. حساب العمولة
+        // 7. حساب العمولة
         function getRealCommission(order) {
             let totalCommission = 0;
             if (!order || !order.web_order_details) return 0;
@@ -377,7 +430,7 @@
             return totalCommission;
         }
 
-        // 6. فتح الفاتورة
+        // 8. فتح الفاتورة المعاينة
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
@@ -499,7 +552,7 @@
             document.getElementById('invoiceModal').classList.add('hidden');
         }
 
-        // 7. بناء النص للمشاركة
+        // 9. بناء نص المشاركة
         function buildShareText(order, commission) {
             const mName = order.custom_marketer_name || 'غير مسجل';
             const mBank = order.custom_bank_name || 'غير مسجل';
@@ -559,7 +612,6 @@
 
                 if (error) throw error;
                 
-                // مسح البيانات الإضافية للطلب المحذوف من التخزين المحلي
                 const savedExtra = getSavedExtraData();
                 delete savedExtra[orderId];
                 saveExtraData(savedExtra);
