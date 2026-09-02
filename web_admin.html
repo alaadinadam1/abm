@@ -63,6 +63,7 @@
                             <th class="p-4">رقم الطلب</th>
                             <th class="p-4">العميل والهاتف</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
+                            <th class="p-4">العمولة المستحقة</th>
                             <th class="p-4">الحالة</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
@@ -71,7 +72,7 @@
                     </thead>
                     <tbody id="ordersTableBody">
                         <tr>
-                            <td colspan="7" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
+                            <td colspan="8" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -142,7 +143,7 @@
             }
         }
 
-        // 1. جلب الطلبات من قواعد البيانات مع معالجة الاستعلامات لتجنب الأخطاء
+        // 1. جلب الطلبات من قواعد البيانات مع جلب عمولة المنتج لحساب العمولة المستحقة
         async function fetchOrders() {
             try {
                 // جلب الطلبات الأساسية
@@ -155,35 +156,73 @@
 
                 let fetchedOrders = orders || [];
 
-                // جلب تفاصيل المنتجات لكل الطلبات
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
-                    const { data: details } = await supabaseClient
+                    
+                    // جلب تفاصيل الطلب مع جلب حقل العمولة commission من جدول products
+                    const { data: details, error: detailsError } = await supabaseClient
                         .from('web_order_details')
-                        .select('*')
+                        .select('*, products(commission)')
                         .in('id_web_order', orderIds);
 
-                    const detailsMap = {};
-                    (details || []).forEach(d => {
-                        if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
-                        detailsMap[d.id_web_order].push(d);
-                    });
+                    if (detailsError) {
+                        // محاولة بديلة إذا كان الربط العلاقات المباشر غير معرف بكود أجنبي صريح
+                        const { data: detailsFallback } = await supabaseClient
+                            .from('web_order_details')
+                            .select('*')
+                            .in('id_web_order', orderIds);
 
-                    fetchedOrders.forEach(o => {
-                        o.web_order_details = detailsMap[o.id_web_order] || [];
-                    });
+                        const { data: products } = await supabaseClient
+                            .from('products')
+                            .select('id_product, commission');
+
+                        const productCommissionMap = {};
+                        (products || []).forEach(p => {
+                            productCommissionMap[p.id_product] = p.commission || 0;
+                        });
+
+                        const detailsMap = {};
+                        (detailsFallback || []).forEach(d => {
+                            d.item_commission = productCommissionMap[d.id_product] || 0;
+                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
+                            detailsMap[d.id_web_order].push(d);
+                        });
+
+                        fetchedOrders.forEach(o => {
+                            o.web_order_details = detailsMap[o.id_web_order] || [];
+                        });
+                    } else {
+                        const detailsMap = {};
+                        (details || []).forEach(d => {
+                            d.item_commission = d.products ? (d.products.commission || 0) : 0;
+                            if (!detailsMap[d.id_web_order]) detailsMap[d.id_web_order] = [];
+                            detailsMap[d.id_web_order].push(d);
+                        });
+
+                        fetchedOrders.forEach(o => {
+                            o.web_order_details = detailsMap[o.id_web_order] || [];
+                        });
+                    }
                 }
 
                 const savedExtra = getSavedExtraData();
                 globalOrders = fetchedOrders;
 
-                // دمج البيانات المحفوظة محلياً (إضافة حقل العمولة commission)
+                // احتساب العمولة المستحقة لجميع العناصر بالطلب
                 globalOrders.forEach(o => {
+                    const calculatedCommission = (o.web_order_details || []).reduce((sum, item) => {
+                        const qte = Number(item.qte || 1);
+                        const comm = Number(item.item_commission || 0);
+                        return sum + (qte * comm);
+                    }, 0);
+
+                    o.calculated_commission = calculatedCommission;
+
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
-                    o.custom_commission = extra.commission !== undefined ? extra.commission : (o.custom_commission || '');
+                    o.custom_commission = extra.commission !== undefined ? extra.commission : (o.custom_commission || o.calculated_commission || '');
                     o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
                 });
 
@@ -291,9 +330,15 @@
                 order.web_order_details.forEach(item => {
                     const price = Number(item.price || 0).toFixed(2);
                     const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                    const itemComm = Number(item.item_commission || 0);
+                    const totalItemComm = (itemComm * Number(item.qte || 1)).toFixed(2);
+
                     detailsHtml += `
                     <tr class="border-b border-gray-100 text-xs">
-                        <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
+                        <td class="py-2 px-1 font-semibold">
+                            ${item.product_name || 'منتج'}
+                            ${itemComm > 0 ? `<div class="text-[10px] text-amber-700 font-medium">(عمولة القطعة: ${itemComm} ج.س)</div>` : ''}
+                        </td>
                         <td class="py-2 px-1 text-center">${item.qte || 1}</td>
                         <td class="py-2 px-1 text-center">${price}</td>
                         <td class="py-2 px-1 text-left font-bold">${amount}</td>
@@ -302,6 +347,8 @@
             } else {
                 detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
             }
+
+            const totalCommission = Number(order.custom_commission || order.calculated_commission || 0).toFixed(2);
 
             modalBody.innerHTML = `
             <div id="printableInvoice" class="space-y-4">
@@ -329,13 +376,18 @@
                     </div>
                 </div>
 
-                ${(order.custom_marketer_name || order.custom_bank_name || order.custom_commission) ? `
+                <!-- خانة العمولة المستحقة بوضوح -->
+                <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs flex justify-between items-center">
+                    <span class="font-bold text-amber-900">💵 العمولة المستحقة للطلب:</span>
+                    <span class="font-black text-amber-700 text-base">${totalCommission} ج.س</span>
+                </div>
+
+                ${(order.custom_marketer_name || order.custom_bank_name || order.custom_marketer_account) ? `
                 <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
                     <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
                     ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
                     ${order.custom_bank_name ? `<div>• البنك: <span class="font-semibold">${order.custom_bank_name}</span></div>` : ''}
                     ${order.custom_marketer_account ? `<div>• الحساب: <span class="font-semibold">${order.custom_marketer_account}</span></div>` : ''}
-                    ${order.custom_commission ? `<div>• العمولة: <span class="font-bold text-emerald-600">${order.custom_commission} ج.س</span></div>` : ''}
                 </div>` : ''}
 
                 <div>
@@ -374,7 +426,8 @@
         // 8. نسخ نص الفاتورة
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            const commission = Number(currentActiveOrder.custom_commission || currentActiveOrder.calculated_commission || 0).toFixed(2);
+            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالعمولة المستحقة: ${commission} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
@@ -387,7 +440,7 @@
 
             if (!orders || orders.length === 0) {
                 const emptyMsg = 'لا توجد طلبات معلقة حالياً 🎉';
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
                 mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
                 return;
             }
@@ -398,6 +451,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
+                const calculatedCommission = Number(order.custom_commission || order.calculated_commission || 0).toFixed(2);
                 
                 const statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
                 const approveBtnClass = `bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200`;
@@ -422,6 +476,12 @@
                         <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
                     </div>
 
+                    <!-- خانة العمولة المستحقة للطلب -->
+                    <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex justify-between items-center text-xs">
+                        <span class="font-bold text-amber-900">💵 العمولة المستحقة:</span>
+                        <span class="font-black text-amber-700">${calculatedCommission} ج.س</span>
+                    </div>
+
                     <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 space-y-2">
                         <span class="text-[11px] font-bold text-indigo-900 block">بيانات المسوق والتحويل:</span>
                         <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
@@ -433,7 +493,7 @@
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="number" placeholder="العمولة (ج.س)" value="${order.custom_commission || ''}" 
+                        <input type="number" placeholder="العمولة المخصصة (ج.س)" value="${order.custom_commission || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
                     </div>
@@ -471,10 +531,15 @@
                             <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="number" placeholder="العمولة (ج.س)" value="${order.custom_commission || ''}" 
+                            <input type="number" placeholder="تعديل العمولة (ج.س)" value="${order.custom_commission || ''}" 
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         </div>
+                    </td>
+                    <td class="p-4">
+                        <span class="inline-block bg-amber-100 text-amber-900 font-extrabold px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
+                            💵 ${calculatedCommission} ج.س
+                        </span>
                     </td>
                     <td class="p-4">${statusBadge}</td>
                     <td class="p-4 font-extrabold text-blue-600">${total} ج.س</td>
