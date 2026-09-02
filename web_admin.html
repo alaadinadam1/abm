@@ -177,12 +177,13 @@
                 const savedExtra = getSavedExtraData();
                 globalOrders = fetchedOrders;
 
-                // دمج البيانات المحفوظة محلياً
+                // دمج البيانات المحفوظة محلياً (إضافة حقل العمولة commission)
                 globalOrders.forEach(o => {
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
+                    o.custom_commission = extra.commission !== undefined ? extra.commission : (o.custom_commission || '');
                     o.is_approved = extra.isApproved !== undefined ? extra.isApproved : (o.is_approved || false);
                 });
 
@@ -206,7 +207,7 @@
             renderOrders(pendingOrders);
         }
 
-        // 3. تحديث بيانات المسوق
+        // 3. تحديث بيانات المسوق والعمولة
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -218,6 +219,7 @@
                 if (field === 'custom_marketer_name') savedExtra[orderId].name = value;
                 if (field === 'custom_bank_name') savedExtra[orderId].bank = value;
                 if (field === 'custom_marketer_account') savedExtra[orderId].account = value;
+                if (field === 'custom_commission') savedExtra[orderId].commission = value;
 
                 saveExtraData(savedExtra);
             }
@@ -314,21 +316,26 @@
                         <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
                     </div>
                     <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف:</span>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الأساسي:</span>
                         <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
                     </div>
-                    <div class="col-span-2">
+                    <div>
+                        <span class="text-gray-500 block text-[10px]">الهاتف الاحتياطي:</span>
+                        <span class="font-bold text-gray-700 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
+                    </div>
+                    <div>
                         <span class="text-gray-500 block text-[10px]">العنوان:</span>
                         <span class="font-semibold text-gray-800">${order.client_address || 'لم يحدد'}</span>
                     </div>
                 </div>
 
-                ${(order.custom_marketer_name || order.custom_bank_name) ? `
+                ${(order.custom_marketer_name || order.custom_bank_name || order.custom_commission) ? `
                 <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
                     <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
                     ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
                     ${order.custom_bank_name ? `<div>• البنك: <span class="font-semibold">${order.custom_bank_name}</span></div>` : ''}
                     ${order.custom_marketer_account ? `<div>• الحساب: <span class="font-semibold">${order.custom_marketer_account}</span></div>` : ''}
+                    ${order.custom_commission ? `<div>• العمولة: <span class="font-bold text-emerald-600">${order.custom_commission} ج.س</span></div>` : ''}
                 </div>` : ''}
 
                 <div>
@@ -367,7 +374,7 @@
         // 8. نسخ نص الفاتورة
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
                 alert('تم نسخ تفاصيل الفاتورة بنجاح');
             });
@@ -426,6 +433,9 @@
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
+                        <input type="number" placeholder="العمولة (ج.س)" value="${order.custom_commission || ''}" 
+                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
+                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
                     </div>
 
                     <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100">
@@ -460,6 +470,9 @@
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                             <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
+                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
+                            <input type="number" placeholder="العمولة (ج.س)" value="${order.custom_commission || ''}" 
+                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
                         </div>
                     </td>
