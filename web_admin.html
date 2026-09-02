@@ -139,9 +139,15 @@
             } catch (e) {}
         }
 
+        function getActiveCommission(order) {
+            if (order.custom_commission !== undefined && order.custom_commission !== null && order.custom_commission !== '') {
+                return Number(order.custom_commission) || 0;
+            }
+            return Number(order.calculated_commission || 0);
+        }
+
         async function fetchOrders() {
             try {
-                // 1. جلب الطلبات
                 const { data: orders, error: ordersError } = await supabaseClient
                     .from('web_orders')
                     .select('*')
@@ -154,7 +160,6 @@
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
                     
-                    // 2. جلب تفاصيل الطلب
                     const { data: details, error: detailsError } = await supabaseClient
                         .from('web_order_details')
                         .select('*')
@@ -162,7 +167,6 @@
 
                     if (detailsError) throw detailsError;
 
-                    // 3. جمع كافة id_product لجلب عمولاتها من جدول products
                     const productIds = [...new Set((details || []).map(d => d.id_product).filter(Boolean))];
 
                     let productsMap = {};
@@ -179,11 +183,10 @@
                         }
                     }
 
-                    // ربط تفاصيل الطلب بالمنتج المقابل له
                     const detailsMap = {};
                     (details || []).forEach(d => {
                         const productInfo = productsMap[d.id_product] || {};
-                        d.commission_per_unit = Number(productInfo.commission || 0); // العمولة الحقيقية من جدول products
+                        d.commission_per_unit = Number(productInfo.commission || 0);
                         if (!d.product_name && productInfo.product_name) {
                             d.product_name = productInfo.product_name;
                         }
@@ -201,7 +204,6 @@
                 globalOrders = fetchedOrders;
 
                 globalOrders.forEach(o => {
-                    // حساب إجمالي العمولة للطلب بناءً على جدول المنتجات (الكمية × عمولة المنتج)
                     const calculatedCommission = (o.web_order_details || []).reduce((sum, item) => {
                         const qte = Number(item.qte || item.quantity || 1);
                         const comm = Number(item.commission_per_unit || 0);
@@ -234,6 +236,18 @@
             renderOrders(pendingOrders);
         }
 
+        function updateCommissionDisplay(orderId) {
+            const order = globalOrders.find(o => o.id_web_order === orderId);
+            if (!order) return;
+
+            const activeCommission = getActiveCommission(order).toFixed(2) + ' ج.س';
+            const desktopElem = document.getElementById(`comm-desktop-${orderId}`);
+            const mobileElem = document.getElementById(`comm-mobile-${orderId}`);
+
+            if (desktopElem) desktopElem.textContent = '💵 ' + activeCommission;
+            if (mobileElem) mobileElem.textContent = activeCommission;
+        }
+
         function setOrderMarketerData(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
@@ -248,7 +262,18 @@
                 if (field === 'custom_commission') savedExtra[orderId].commission = value;
 
                 saveExtraData(savedExtra);
-                renderUI();
+
+                // تزامن قيم المدخلات بين عرض الجوال وعرض الكمبيوتر بدون إيقاف التركيز
+                const inputs = document.querySelectorAll(`[data-order-id="${orderId}"][data-field="${field}"]`);
+                inputs.forEach(input => {
+                    if (document.activeElement !== input) {
+                        input.value = value;
+                    }
+                });
+
+                if (field === 'custom_commission') {
+                    updateCommissionDisplay(orderId);
+                }
             }
         }
 
@@ -318,9 +343,7 @@
                 detailsHtml = `<tr><td colspan="4" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
             }
 
-            const activeCommission = (order.custom_commission !== '' && order.custom_commission !== null && order.custom_commission !== undefined)
-                ? Number(order.custom_commission)
-                : Number(order.calculated_commission || 0);
+            const activeCommission = getActiveCommission(order);
 
             modalBody.innerHTML = `
             <div id="printableInvoice" class="space-y-4">
@@ -400,9 +423,7 @@
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            const activeComm = (currentActiveOrder.custom_commission !== '' && currentActiveOrder.custom_commission !== null && currentActiveOrder.custom_commission !== undefined)
-                ? Number(currentActiveOrder.custom_commission)
-                : Number(currentActiveOrder.calculated_commission || 0);
+            const activeComm = getActiveCommission(currentActiveOrder);
 
             let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالعمولة المستحقة: ${activeComm.toFixed(2)} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => {
@@ -427,11 +448,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                
-                const activeCommission = (order.custom_commission !== '' && order.custom_commission !== null && order.custom_commission !== undefined)
-                    ? Number(order.custom_commission)
-                    : Number(order.calculated_commission || 0);
-
+                const activeCommission = getActiveCommission(order);
                 const statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-amber-200">⏳ قيد الانتظار</span>`;
 
                 // كروت الجوال
@@ -455,21 +472,25 @@
 
                     <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex justify-between items-center text-xs">
                         <span class="font-bold text-amber-900">💵 العمولة المستحقة:</span>
-                        <span class="font-black text-amber-700 text-sm">${activeCommission.toFixed(2)} ج.س</span>
+                        <span id="comm-mobile-${order.id_web_order}" class="font-black text-amber-700 text-sm">${activeCommission.toFixed(2)} ج.س</span>
                     </div>
 
                     <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 space-y-2">
                         <span class="text-[11px] font-bold text-indigo-900 block">بيانات المسوق والتحويل:</span>
                         <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
+                            data-order-id="${order.id_web_order}" data-field="custom_marketer_name"
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs">
                         <input type="text" placeholder="اسم البنك (مثال: بنك الخرطوم)" value="${order.custom_bank_name || ''}" 
+                            data-order-id="${order.id_web_order}" data-field="custom_bank_name"
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs">
                         <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
+                            data-order-id="${order.id_web_order}" data-field="custom_marketer_account"
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs">
                         <input type="number" placeholder="تعديل العمولة يدوياً (ج.س)" value="${order.custom_commission !== undefined ? order.custom_commission : ''}" 
+                            data-order-id="${order.id_web_order}" data-field="custom_commission"
                             oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                             class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs font-bold text-amber-800">
                     </div>
@@ -499,21 +520,25 @@
                     <td class="p-4">
                         <div class="space-y-1.5">
                             <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
+                                data-order-id="${order.id_web_order}" data-field="custom_marketer_name"
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white text-xs">
                             <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" 
+                                data-order-id="${order.id_web_order}" data-field="custom_bank_name"
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white text-xs">
                             <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
+                                data-order-id="${order.id_web_order}" data-field="custom_marketer_account"
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white text-xs">
                             <input type="number" placeholder="تعديل العمولة (ج.س)" value="${order.custom_commission !== undefined ? order.custom_commission : ''}" 
+                                data-order-id="${order.id_web_order}" data-field="custom_commission"
                                 oninput="setOrderMarketerData(${order.id_web_order}, 'custom_commission', this.value)"
                                 class="w-full p-1.5 border border-indigo-200 rounded-lg bg-white font-bold text-amber-800 text-xs">
                         </div>
                     </td>
                     <td class="p-4">
-                        <span class="inline-block bg-amber-100 text-amber-900 font-extrabold px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
+                        <span id="comm-desktop-${order.id_web_order}" class="inline-block bg-amber-100 text-amber-900 font-extrabold px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
                             💵 ${activeCommission.toFixed(2)} ج.س
                         </span>
                     </td>
