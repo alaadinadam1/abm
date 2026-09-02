@@ -30,7 +30,7 @@
             </button>
         </div>
 
-        <!-- قائمة الطلبات (بطاقات وليست جدول) -->
+        <!-- قائمة الطلبات (بطاقات) -->
         <div id="ordersCardsContainer" class="space-y-3">
             <div class="p-8 text-center bg-white rounded-2xl text-gray-400 font-semibold border border-gray-200">
                 جاري تحميل الطلبات...
@@ -150,11 +150,11 @@
                 renderOrdersCards();
 
             } catch (err) {
-                alert("خطأ اتصال: " + err.message);
+                alert("خطأ اتصال: " + (err.message || JSON.stringify(err)));
             }
         }
 
-        // 2. عرض الطلبات كبطاقات بدلاً من الجداول
+        // 2. عرض الطلبات كبطاقات
         function renderOrdersCards() {
             const container = document.getElementById('ordersCardsContainer');
 
@@ -300,7 +300,7 @@
             renderProductsList();
         }
 
-        // 5. حفظ كافة البيانات
+        // 5. حفظ كافة البيانات الحالية بالجدول الرئيسي والفرعي
         async function saveOrderAndProducts() {
             if (!editingOrder) return;
 
@@ -308,29 +308,37 @@
             saveBtn.disabled = true;
             saveBtn.textContent = 'جاري الحفظ...';
 
-            const updatePayload = {
-                marketer_name: document.getElementById('inputMarketerName').value,
-                bank_name: document.getElementById('inputBankName').value,
-                account_number: document.getElementById('inputAccountNumber').value,
-                client_name: document.getElementById('inputClientName').value,
-                client_phone: document.getElementById('inputClientPhone').value,
-                client_second_phone: document.getElementById('inputClientSecondPhone').value,
-                client_address: document.getElementById('inputClientAddress').value,
+            const payload = {
+                client_name: document.getElementById('inputClientName').value || null,
+                client_phone: document.getElementById('inputClientPhone').value || null,
+                client_second_phone: document.getElementById('inputClientSecondPhone').value || null,
+                client_address: document.getElementById('inputClientAddress').value || null,
+                marketer_name: document.getElementById('inputMarketerName').value || null,
+                bank_name: document.getElementById('inputBankName').value || null,
+                account_number: document.getElementById('inputAccountNumber').value || null,
                 total_amount: editingOrder.total_amount || 0
             };
 
             try {
+                // 1) تحديث البيانات الرئيسية للطلب
                 const { error: orderErr } = await supabaseClient
                     .from('web_orders')
-                    .update(updatePayload)
+                    .update(payload)
                     .eq('id_web_order', editingOrder.id_web_order);
 
-                if (orderErr) throw orderErr;
+                if (orderErr) {
+                    throw new Error("خطأ تحديث الطلب: " + (orderErr.message || orderErr.details || JSON.stringify(orderErr)));
+                }
 
-                await supabaseClient
+                // 2) إعادة تحديث تفاصيل المنتجات للطلب
+                const { error: deleteErr } = await supabaseClient
                     .from('web_order_details')
                     .delete()
                     .eq('id_web_order', editingOrder.id_web_order);
+
+                if (deleteErr) {
+                    console.warn("حذف التفاصيل القديمة:", deleteErr);
+                }
 
                 if (editingOrder.web_order_details && editingOrder.web_order_details.length > 0) {
                     const rowsToInsert = editingOrder.web_order_details.map(item => ({
@@ -345,7 +353,9 @@
                         .from('web_order_details')
                         .insert(rowsToInsert);
 
-                    if (insertErr) throw insertErr;
+                    if (insertErr) {
+                        throw new Error("خطأ إضافة المنتجات: " + (insertErr.message || insertErr.details || JSON.stringify(insertErr)));
+                    }
                 }
 
                 alert('✅ تم حفظ كافة البيانات بنجاح');
@@ -353,8 +363,8 @@
                 fetchOrders();
 
             } catch (err) {
-                console.error("حطأ الحفظ:", err);
-                alert('❌ تعذر الحفظ: ' + err.message);
+                console.error("خطأ أثناء الحفظ الكامل:", err);
+                alert('❌ تعذر الحفظ:\n' + err.message);
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = '💾 حفظ البيانات';
