@@ -26,7 +26,6 @@
 
     <div class="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         
-        <!-- شريط العنوان والبطاقات الإحصائية -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
                 <h1 class="text-xl sm:text-2xl font-black text-slate-900">📦 لوحة التحكم: إدارة الطلبات</h1>
@@ -45,12 +44,10 @@
             </div>
         </div>
 
-        <!-- عرض كروت الجوال -->
         <div id="mobileOrdersList" class="block md:hidden space-y-3">
             <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
         </div>
 
-        <!-- الجدول الرئيسي للكمبيوتر -->
         <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse text-xs md:text-sm">
@@ -74,7 +71,6 @@
         </div>
     </div>
 
-    <!-- النافذة المنبثقة للفاتورة Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
             
@@ -87,8 +83,7 @@
             </div>
 
             <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
-                <!-- محتوى الفاتورة -->
-            </div>
+                </div>
 
             <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
                 <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
@@ -120,10 +115,10 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        // 1. جلب الطلبات بآلية آمنة تتفادى أخطاء الربط مع tb_users
+        // 1. جلب الطلبات بآلية آمنة
         async function fetchOrders() {
             try {
-                // جلب الطلبات مع تفاصيل المبيعات مباشرة
+                // أ) جلب جميع الطلبات تفصيلياً
                 const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select(`
@@ -145,27 +140,35 @@
                 if (error) throw error;
                 globalOrders = orders || [];
 
-                // جلب بيانات كافة المستخدمين المربوطين دفعة واحدة لتفادي خطأ العلاقات في Supabase
-                const userIds = [...new Set(globalOrders.map(o => o.id_user).filter(Boolean))];
+                // ب) تجميع كافة المعرفات المتاحة للمستخدمين
+                const rawUserIds = globalOrders.map(o => o.id_user).filter(id => id !== null && id !== undefined && id !== '');
+                const userIds = [...new Set(rawUserIds)];
+
+                console.log("قائمة id_user للطلبات المجلوبة:", userIds);
+
                 let usersMap = {};
 
                 if (userIds.length > 0) {
+                    // جلب بيانات جميع المستخدمين دفعة واحدة
                     const { data: usersData, error: usersErr } = await supabaseClient
                         .from('tb_users')
                         .select('id, username, fullname, bank_account')
                         .in('id', userIds);
 
-                    if (!usersErr && usersData) {
+                    if (usersErr) {
+                        console.error("خطأ عند جلب بيانات tb_users (غالباً RLS):", usersErr);
+                    } else if (usersData) {
+                        console.log("بيانات tb_users المجلوبة بنجاح:", usersData);
                         usersData.forEach(u => {
-                            usersMap[u.id] = u;
+                            usersMap[String(u.id)] = u;
                         });
                     }
                 }
 
-                // دموج بيانات المستخدم داخل كل طلب
+                // ج) دمج بيانات المستخدم داخل كائن الطلب المقابل له
                 globalOrders.forEach(order => {
-                    if (order.id_user && usersMap[order.id_user]) {
-                        order.user_info = usersMap[order.id_user];
+                    if (order.id_user !== null && order.id_user !== undefined) {
+                        order.user_info = usersMap[String(order.id_user)] || null;
                     }
                 });
 
@@ -175,7 +178,7 @@
                 renderOrders(globalOrders);
 
             } catch (err) {
-                console.error("تفاصيل الخطأ الدقيقة عند جلب الطلبات:", err);
+                console.error("تفاصيل الخطأ عند جلب الطلبات:", err);
                 const errMsg = err.message || err.error_description || JSON.stringify(err);
                 alert("فشل جلب البيانات: " + errMsg);
             }
@@ -272,7 +275,7 @@
             return totalCommission;
         }
 
-        // 4. استخراج بيانات المستخدم المدمجة
+        // 4. استخراج بيانات المستخدم
         function getUserInfo(order) {
             const u = order.user_info;
             if (!u) return { userName: 'غير مسجل', bankAccount: 'غير مسجل' };
@@ -344,7 +347,6 @@
                         </div>
                     </div>
 
-                    <!-- قسم بيانات المسوق البنكية -->
                     <div class="bg-indigo-50/70 p-3 sm:p-4 rounded-xl border border-indigo-100 text-xs space-y-1.5">
                         <div class="text-[10px] font-extrabold text-indigo-500 uppercase tracking-wider">بيانات المسوق والتحويل</div>
                         <div class="flex justify-between items-center text-slate-700">
