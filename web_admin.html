@@ -474,11 +474,11 @@ async function sendToWhatsappDirectly() {
         }
     }
 
-    // 2. الرابط المضمون لفتح تطبيق الواتساب أو واتساب ويب فوراً بدون أخطاء بروتوكول
-    const encodedText = encodeURIComponent(msg);
-    const whatsappApiUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
-    
-    window.open(whatsappApiUrl, '_blank');
+    // التوجيه المباشر لتطبيق الواتساب
+const encodedText = encodeURIComponent(msg);
+
+// استخدام رابط wa.me المباشر مع التوجيه في نفس الصفحة
+window.location.href = `https://wa.me/?text=${encodedText}`;
 }
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
