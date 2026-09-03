@@ -92,7 +92,7 @@
         const supabaseClient = supabase.createClient(
             "https://ihlwkwiimimoiplfqcdk.supabase.co",
             "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
-"
+
         );
 
         let products = [];
@@ -137,7 +137,7 @@
             availableProducts.forEach(p => {
                 let price = Number(p.seal_price) || 0;
                 let productName = p.product_name || "منتج غير مسمى";
-                let imgUrl = p.image_product || fallbackImg;
+                let imgUrl = p.image_url  || fallbackImg;
                 
                 html += `
                 <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col justify-between p-4 transform transition duration-200 hover:shadow-md">
