@@ -426,7 +426,6 @@
         }
 
         // دالة الإرسال عبر واتساب المحدثة لتفتح التطبيق مباشرة واختيار الرقم من السجل
-// دالة المشاركة والإرسال عبر الواتساب المحدثة والمضمونة
 async function sendToWhatsappDirectly() {
     if (!currentActiveOrder) return;
     const activeComm = typeof getActiveCommission === 'function' ? getActiveCommission(currentActiveOrder) : 0;
@@ -461,7 +460,9 @@ async function sendToWhatsappDirectly() {
                 marketerSection +
                 `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
-    // 1. تجربة مشاركة النظام المباشرة (تتيح اختيار الواتساب وسجل الأسماء على الجوال)
+    const encodedText = encodeURIComponent(msg);
+
+    // 1. محاولة استخدام قائمة المشاركة الخاصة بالنظام (للجوال)
     if (navigator.share) {
         try {
             await navigator.share({
@@ -470,15 +471,12 @@ async function sendToWhatsappDirectly() {
             });
             return;
         } catch (err) {
-            console.log("تم التجاوز عن مشاركة النظام:", err);
+            console.log("تجاوز المشاركة المباشرة:", err);
         }
     }
 
-    // التوجيه المباشر لتطبيق الواتساب
-const encodedText = encodeURIComponent(msg);
-
-// استخدام رابط wa.me المباشر مع التوجيه في نفس الصفحة
-window.location.href = `https://wa.me/?text=${encodedText}`;
+    // 2. التوجيه المباشر لتطبيق الواتساب دون نوافذ منبثقة
+    window.location.href = `https://wa.me/?text=${encodedText}`;
 }
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
