@@ -144,7 +144,6 @@
 
                 globalApprovedInvoices = data || [];
                 
-                // جلب تفاصيل المنتجات المرتبطة بهذه الطلبات لكي تظهر داخل الفاتورة عند المعاينة
                 const orderIds = globalApprovedInvoices.map(inv => inv.id_web_order);
                 if (orderIds.length > 0) {
                     const { data: detailsData } = await supabaseClient
@@ -172,109 +171,4 @@
         }
 
         function renderUI(invoices) {
-            const grandTotal = invoices.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-            document.getElementById('totalArchivedRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
-            document.getElementById('invoicesCount').textContent = invoices.length;
-
-            const tbody = document.getElementById('invoicesTableBody');
-            const mobileList = document.getElementById('mobileInvoicesList');
-
-            if (!invoices || invoices.length === 0) {
-                const emptyMsg = 'لا توجد فواتير معتدة في الأرشيف حالياً 📂';
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
-                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
-                return;
-            }
-
-            let tableHtml = '';
-            let cardsHtml = '';
-
-            invoices.forEach(inv => {
-                const approvalDate = inv.date_approved ? new Date(inv.date_approved).toLocaleString('ar-SD') : 'غير محدد';
-                const total = Number(inv.total_amount || 0).toFixed(2);
-                
-                let activeComm = 0;
-                if (inv.custom_commission !== undefined && inv.custom_commission !== null && inv.custom_commission !== '') {
-                    activeComm = Number(inv.custom_commission) || 0;
-                } else {
-                    activeComm = Number(inv.calculated_commission || 0);
-                }
-
-                // كروت الجوال
-                cardsHtml += `
-                <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                        <span class="font-black text-slate-900 text-sm">طلب أرشيف #${inv.id_web_order}</span>
-                        <span class="text-emerald-600 font-extrabold text-sm">${total} ج.س</span>
-                    </div>
-                    
-                    <div class="text-xs space-y-1">
-                        <div class="font-bold text-gray-900">${inv.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 ${inv.client_phone || '-'}</div>
-                        <div class="text-gray-500 dir-ltr text-right font-semibold">📞 ${inv.client_second_phone || 'لا يوجد'}</div>
-                        <div class="text-gray-500 pt-1">📍 ${inv.client_address || 'لم يحدد'}</div>
-                        ${inv.custom_marketer_name ? `<div class="text-indigo-700 pt-1">👤 المسوق: <span class="font-semibold">${inv.custom_marketer_name}</span></div>` : ''}
-                        ${inv.custom_bank_name ? `<div class="text-indigo-700">🏦 البنك: <span class="font-semibold">${inv.custom_bank_name} (${inv.custom_marketer_account || '-'})</span></div>` : ''}
-                        <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">اعتماد: ${approvalDate}</div>
-                    </div>
-
-                    <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 flex justify-between items-center text-xs">
-                        <span class="font-bold text-amber-900">💵 العمولة:</span>
-                        <span class="font-black text-amber-700 text-sm">${activeComm.toFixed(2)} ج.س</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-1.5 pt-2 border-t border-gray-100">
-                        <button onclick="openInvoiceModal(${inv.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2 px-1 rounded-xl text-xs text-center transition">
-                            👁️ معاينة الفاتورة
-                        </button>
-                        <button onclick="removeApproval(${inv.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-1 rounded-xl text-xs text-center transition">
-                            ↩️ إلغاء الاعتماد
-                        </button>
-                    </div>
-                </div>`;
-
-                // جدول الكمبيوتر
-                tableHtml += `
-                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
-                    <td class="p-4 font-bold text-gray-900">#${inv.id_web_order}</td>
-                    <td class="p-4">
-                        <div class="font-bold text-gray-900">${inv.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${inv.client_phone || '-'}</div>
-                        <div class="text-gray-500 text-xs dir-ltr">📞 ${inv.client_second_phone || '-'}</div>
-                    </td>
-                    <td class="p-4 text-xs">
-                        <div>👤 <span class="font-semibold">${inv.custom_marketer_name || 'غير محدد'}</span></div>
-                        <div class="text-gray-500">🏦 ${inv.custom_bank_name || 'بدون بنك'} (${inv.custom_marketer_account || '-'})</div>
-                    </td>
-                    <td class="p-4">
-                        <span class="inline-block bg-amber-100 text-amber-900 font-extrabold px-3 py-1.5 rounded-xl border border-amber-200 text-xs">
-                            💵 ${activeComm.toFixed(2)} ج.س
-                        </span>
-                    </td>
-                    <td class="p-4 font-extrabold text-emerald-600">${total} ج.س</td>
-                    <td class="p-4 text-xs text-gray-400 dir-ltr">${approvalDate}</td>
-                    <td class="p-4">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="openInvoiceModal(${inv.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                                👁️ معاينة
-                            </button>
-                            <button onclick="removeApproval(${inv.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-3 rounded-lg text-xs transition">
-                                ↩️ إلغاء الاعتماد
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
-            });
-
-            tbody.innerHTML = tableHtml;
-            mobileList.innerHTML = cardsHtml;
-        }
-
-        function filterInvoices() {
-            const query = document.getElementById('searchInput').value.trim().toLowerCase();
-            if (!query) {
-                renderUI(globalApprovedInvoices);
-                return;
-            }
-
-            const filtered = globalApprovedInvoices
+            const grandTotal = invoices.reduce((sum
