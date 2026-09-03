@@ -426,10 +426,10 @@
         }
 
         // دالة الإرسال عبر واتساب المحدثة لتفتح التطبيق مباشرة واختيار الرقم من السجل
-// دالة الإرسال الذكية عبر واتساب وتطبيقات المشاركة
+// دالة المشاركة والإرسال عبر الواتساب المحدثة والمضمونة
 async function sendToWhatsappDirectly() {
     if (!currentActiveOrder) return;
-    const activeComm = getActiveCommission(currentActiveOrder);
+    const activeComm = typeof getActiveCommission === 'function' ? getActiveCommission(currentActiveOrder) : 0;
     
     let detailsList = '';
     if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
@@ -439,7 +439,6 @@ async function sendToWhatsappDirectly() {
         });
     }
 
-    // إضافة بيانات المسوق والبنك فقط إذا تم إدخالها
     let marketerSection = '';
     if (currentActiveOrder.custom_marketer_name || currentActiveOrder.custom_bank_name || currentActiveOrder.custom_marketer_account) {
         marketerSection = `------------------\n` +
@@ -462,26 +461,24 @@ async function sendToWhatsappDirectly() {
                 marketerSection +
                 `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
-    // 1. الخيار الأول والأنسب للهواتف الذكية: استخدام قائمة المشاركة المدمجة في النظام
+    // 1. تجربة مشاركة النظام المباشرة (تتيح اختيار الواتساب وسجل الأسماء على الجوال)
     if (navigator.share) {
         try {
             await navigator.share({
                 title: `فاتورة طلب #${currentActiveOrder.id_web_order}`,
                 text: msg
             });
-            return; // تم فتح قائمة المشاركة بنجاح
+            return;
         } catch (err) {
-            // في حال ألغى المستخدم النافذة أو حدث خطأ، يتم الانتقال للحل الاحتياطي
-            console.log("تم إلغاء المشاركة أو لم تكتمل:", err);
+            console.log("تم التجاوز عن مشاركة النظام:", err);
         }
     }
 
-    // 2. الخيار الاحتياطي للكمبيوتر والمتصفحات التي لا تدعم navigator.share
+    // 2. الرابط المضمون لفتح تطبيق الواتساب أو واتساب ويب فوراً بدون أخطاء بروتوكول
     const encodedText = encodeURIComponent(msg);
-    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+    const whatsappApiUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
     
-    // فتح الرابط مباشرة في نافذة جديدة
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappApiUrl, '_blank');
 }
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
