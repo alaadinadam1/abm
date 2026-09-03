@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>الفواتير المعتمدة</title>
-    <!-- إغلاق تحذيرات Tailwind CDN -->
     <script>
         window.tailwind = { config: { suppressDeprecationWarnings: true } };
     </script>
@@ -13,7 +12,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
-        
         @media print {
             body * { visibility: hidden; }
             #printableInvoice, #printableInvoice * { visibility: visible; }
@@ -30,16 +28,15 @@
 
     <div class="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         
-        <!-- شريط العنوان والبطاقات الإحصائية -->
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
-                <h1 id="pageTitle" class="text-xl sm:text-2xl font-black text-slate-900">✅ الفواتير المعتمدة</h1>
-                <p id="pageSubTitle" class="text-[11px] sm:text-xs text-gray-500 mt-0.5">قائمة الفواتير والطلبات التي تم اعتمادها بنجاح</p>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-900">✅ الفواتير المعتمدة</h1>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">قائمة الفواتير والطلبات المطابقة لبيانات الإدارة</p>
             </div>
             
             <div class="flex items-center gap-3 w-full sm:w-auto">
                 <div class="bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl text-right flex-1 sm:flex-none">
-                    <span id="totalLabel" class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">إجمالي المبيعات المعتمدة</span>
+                    <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">إجمالي المبيعات المعتمدة</span>
                     <span id="totalRevenue" class="text-lg sm:text-xl font-black text-emerald-900">0.00 ج.س</span>
                 </div>
                 
@@ -49,12 +46,10 @@
             </div>
         </div>
 
-        <!-- عرض كروت الجوال -->
         <div id="mobileOrdersList" class="block md:hidden space-y-3">
             <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
         </div>
 
-        <!-- الجدول الرئيسي للكمبيوتر -->
         <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right border-collapse text-xs md:text-sm">
@@ -71,75 +66,45 @@
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
-                        <tr>
-                            <td colspan="8" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td>
-                        </tr>
+                        <tr><td colspan="8" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- النافذة المنبثقة للفاتورة Modal -->
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100 animate-in slide-in-from-bottom duration-200">
-            
+        <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100">
             <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <h3 class="font-bold text-xs sm:text-sm tracking-wide">معاينة وإصدار الفاتورة المعتمدة</h3>
-                </div>
-                <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-gray-300 flex items-center justify-center font-bold text-base transition active:scale-95">✕</button>
+                <h3 class="font-bold text-xs sm:text-sm">معاينة الفاتورة</h3>
+                <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 text-gray-300 flex items-center justify-center font-bold">✕</button>
             </div>
-
-            <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow">
-                <!-- محتوى الفاتورة -->
-            </div>
-
-            <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-between items-center no-print shrink-0">
-                <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition">
-                    إغلاق
-                </button>
-                
+            <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow"></div>
+            <div class="bg-gray-50 border-t border-gray-100 p-3 sm:p-4 flex justify-between items-center no-print shrink-0">
+                <button onclick="closeInvoiceModal()" class="hidden sm:block bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs">إغلاق</button>
                 <div class="grid grid-cols-3 gap-2 w-full sm:w-auto">
-                    <button onclick="sendToWhatsappDirectly()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
-                        💬 واتساب
-                    </button>
-                    <button onclick="copyInvoiceText()" class="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
-                        📋 نسخ
-                    </button>
-                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-2.5 px-2 sm:px-3.5 rounded-xl text-[11px] sm:text-xs flex items-center justify-center gap-1 transition shadow-sm">
-                        🖨️ طباعة
-                    </button>
+                    <button onclick="sendToWhatsappDirectly()" class="bg-emerald-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs">💬 واتساب</button>
+                    <button onclick="copyInvoiceText()" class="bg-purple-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs">📋 نسخ</button>
+                    <button onclick="window.print()" class="bg-blue-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs">🖨️ طباعة</button>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
         const SUPABASE_URL = "https://ihlwkwiimimoiplfqcdk.supabase.co";
         const SUPABASE_KEY = "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"; 
-
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let globalOrders = [];
         let currentActiveOrder = null;
 
         function getSavedExtraData() {
-            try {
-                return JSON.parse(localStorage.getItem('orders_extra_data')) || {};
-            } catch (e) {
-                return {};
-            }
+            try { return JSON.parse(localStorage.getItem('orders_extra_data')) || {}; } catch (e) { return {}; }
         }
 
         function saveExtraData(data) {
-            try {
-                localStorage.setItem('orders_extra_data', JSON.stringify(data));
-            } catch (e) {
-                console.error("تعذر الحفظ في الذاكرة المحلية", e);
-            }
+            try { localStorage.setItem('orders_extra_data', JSON.stringify(data)); } catch (e) {}
         }
 
         async function fetchApprovedInvoices() {
@@ -150,12 +115,10 @@
                     .order('date_created', { ascending: false });
 
                 if (ordersError) throw ordersError;
-
                 let fetchedOrders = orders || [];
 
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
-                    
                     const { data: details } = await supabaseClient
                         .from('web_order_details')
                         .select('*')
@@ -168,14 +131,16 @@
                     });
 
                     fetchedOrders.forEach(o => {
-                        const orderDetails = detailsMap[o.id_web_order] || [];
-                        o.web_order_details = orderDetails;
+                        o.web_order_details = detailsMap[o.id_web_order] || [];
                         
-                        let totalCommission = 0;
-                        orderDetails.forEach(item => {
-                            totalCommission += Number(item.commission || 0);
-                        });
-                        o.total_commission = totalCommission;
+                        // جلب العمولة مباشرة من الجدول الرئيسي إن وجدت، أو حسابها من التفاصيل كبديل آمن
+                        let comm = Number(o.commission || o.total_commission || 0);
+                        if (comm === 0 && o.web_order_details.length > 0) {
+                            o.web_order_details.forEach(item => {
+                                comm += Number(item.commission || item.item_commission || 0);
+                            });
+                        }
+                        o.total_commission = comm;
                     });
                 }
 
@@ -187,26 +152,19 @@
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
                     o.custom_bank_name = extra.bank !== undefined ? extra.bank : (o.custom_bank_name || '');
                     o.custom_marketer_account = extra.account !== undefined ? extra.account : (o.custom_marketer_account || '');
-                    
-                    if (extra.isApproved !== undefined) {
-                        o.is_approved = extra.isApproved;
-                    }
+                    if (extra.isApproved !== undefined) o.is_approved = extra.isApproved;
                 });
 
                 renderUI();
-
             } catch (err) {
-                console.error("خطأ عند جلب الفواتير:", err);
-                alert("فشل جلب الفواتير: " + (err.message || JSON.stringify(err)));
+                console.error("خطأ:", err);
             }
         }
 
         function renderUI() {
             const approvedOrders = globalOrders.filter(o => o.is_approved === true);
-
             const grandTotal = approvedOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
             document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
-
             renderOrders(approvedOrders);
         }
 
@@ -214,14 +172,11 @@
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
                 order[field] = value;
-                
                 const savedExtra = getSavedExtraData();
                 if (!savedExtra[orderId]) savedExtra[orderId] = {};
-                
                 if (field === 'custom_marketer_name') savedExtra[orderId].name = value;
                 if (field === 'custom_bank_name') savedExtra[orderId].bank = value;
                 if (field === 'custom_marketer_account') savedExtra[orderId].account = value;
-
                 saveExtraData(savedExtra);
             }
         }
@@ -229,7 +184,6 @@
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
-
             const newApprovedState = !order.is_approved;
             order.is_approved = newApprovedState;
 
@@ -239,65 +193,45 @@
             saveExtraData(savedExtra);
 
             renderUI();
-
-            if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) {
-                closeInvoiceModal();
-            }
+            if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) closeInvoiceModal();
 
             try {
-                await supabaseClient
-                    .from('web_orders')
-                    .update({ is_approved: newApprovedState })
-                    .eq('id_web_order', orderId);
-            } catch (e) {
-                console.log("تم الحفظ محلياً.");
-            }
+                await supabaseClient.from('web_orders').update({ is_approved: newApprovedState }).eq('id_web_order', orderId);
+            } catch (e) {}
         }
 
         async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت متأكد من رغبتك في حذف الفاتورة رقم #${orderId}؟`)) return;
-
+            if (!confirm(`هل أنت متأكد من حذف الفاتورة #${orderId}؟`)) return;
             try {
                 await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                const { error } = await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
-
-                if (error) throw error;
-
+                await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
                 globalOrders = globalOrders.filter(o => o.id_web_order !== orderId);
                 renderUI();
-                alert('تم حذف الفاتورة بنجاح');
             } catch (err) {
-                alert('حدث خطأ أثناء الحذف: ' + err.message);
+                alert('خطأ أثناء الحذف');
             }
         }
 
         function openInvoiceModal(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
-
             currentActiveOrder = order;
 
             const modalBody = document.getElementById('modalInvoiceCard');
             let detailsHtml = '';
-
-            if (order.web_order_details && order.web_order_details.length > 0) {
-                order.web_order_details.forEach(item => {
-                    const price = Number(item.price || 0).toFixed(2);
-                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
-                    const itemComm = Number(item.commission || 0).toFixed(2);
-                    
-                    detailsHtml += `
-                    <tr class="border-b border-gray-100 text-xs">
-                        <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
-                        <td class="py-2 px-1 text-center">${item.qte || 1}</td>
-                        <td class="py-2 px-1 text-center">${price}</td>
-                        <td class="py-2 px-1 text-center text-purple-600">${itemComm}</td>
-                        <td class="py-2 px-1 text-left font-bold">${amount}</td>
-                    </tr>`;
-                });
-            } else {
-                detailsHtml = `<tr><td colspan="5" class="py-3 text-center text-gray-400 text-xs">لا توجد تفاصيل للمنتجات</td></tr>`;
-            }
+            (order.web_order_details || []).forEach(item => {
+                const price = Number(item.price || 0).toFixed(2);
+                const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+                const itemComm = Number(item.commission || 0).toFixed(2);
+                detailsHtml += `
+                <tr class="border-b border-gray-100 text-xs">
+                    <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
+                    <td class="py-2 px-1 text-center">${item.qte || 1}</td>
+                    <td class="py-2 px-1 text-center">${price}</td>
+                    <td class="py-2 px-1 text-center text-purple-600">${itemComm}</td>
+                    <td class="py-2 px-1 text-left font-bold">${amount}</td>
+                </tr>`;
+            });
 
             modalBody.innerHTML = `
             <div id="printableInvoice" class="space-y-4">
@@ -306,194 +240,105 @@
                     <h2 class="text-lg font-black text-slate-900">فاتورة طلب #${order.id_web_order}</h2>
                     <p class="text-[11px] text-gray-500">${order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : ''}</p>
                 </div>
-
                 <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">العميل:</span>
-                        <span class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف الأساسي:</span>
-                        <span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || '-'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">الهاتف الثاني:</span>
-                        <span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px]">إجمالي العمولة المستحقة:</span>
-                        <span class="font-bold text-purple-600 block">${Number(order.total_commission || 0).toFixed(2)} ج.س</span>
-                    </div>
-                    <div class="col-span-2">
-                        <span class="text-gray-500 block text-[10px]">العنوان:</span>
-                        <span class="font-semibold text-gray-800">${order.client_address || 'لم يحدد'}</span>
-                    </div>
+                    <div><span class="text-gray-500 block text-[10px]">العميل:</span><span class="font-bold text-gray-900">${order.client_name || ''}</span></div>
+                    <div><span class="text-gray-500 block text-[10px]">الهاتف:</span><span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || ''}</span></div>
+                    <div><span class="text-gray-500 block text-[10px]">الهاتف الثاني:</span><span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span></div>
+                    <div><span class="text-gray-500 block text-[10px]">إجمالي العمولة:</span><span class="font-bold text-purple-600 block">${Number(order.total_commission || 0).toFixed(2)} ج.س</span></div>
+                    <div class="col-span-2"><span class="text-gray-500 block text-[10px]">العنوان:</span><span class="font-semibold text-gray-800">${order.client_address || ''}</span></div>
                 </div>
-
-                 ${(order.custom_marketer_name || order.custom_bank_name) ? `
-                <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
-                    <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
-                    ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
-                    ${order.custom_bank_name ? `<div>• البنك: <span class="font-semibold">${order.custom_bank_name}</span></div>` : ''}
-                    ${order.custom_marketer_account ? `<div>• الحساب: <span class="font-semibold">${order.custom_marketer_account}</span></div>` : ''}
-                </div>` : ''}
-
                 <div>
                     <table class="w-full text-right border-collapse">
-                        <thead>
-                            <tr class="border-b border-gray-200 text-[11px] text-gray-500">
-                                <th class="py-1.5 px-1">المنتج</th>
-                                <th class="py-1.5 px-1 text-center">الكمية</th>
-                                <th class="py-1.5 px-1 text-center">السعر</th>
-                                <th class="py-1.5 px-1 text-center">عمولة/م</th>
-                                <th class="py-1.5 px-1 text-left">المجموع</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${detailsHtml}
-                        </tbody>
+                        <thead><tr class="border-b border-gray-200 text-[11px] text-gray-500"><th class="py-1.5 px-1">المنتج</th><th class="py-1.5 px-1 text-center">الكمية</th><th class="py-1.5 px-1 text-center">السعر</th><th class="py-1.5 px-1 text-center">عمولة</th><th class="py-1.5 px-1 text-left">المجموع</th></tr></thead>
+                        <tbody>${detailsHtml}</tbody>
                     </table>
                 </div>
-
                 <div class="flex justify-between items-center bg-emerald-900 text-white p-3 rounded-xl font-bold text-sm">
-                    <span>المبلغ الإجمالي المدفوع:</span>
-                    <span class="text-emerald-300 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
+                    <span>الإجمالي:</span><span class="text-emerald-300 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
                 </div>
             </div>`;
-
             document.getElementById('invoiceModal').classList.remove('hidden');
         }
 
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
-            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، الفاتورة رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س معتمدة ومجهزة.`;
+            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، الفاتورة رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س معتمدة.`;
             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الثاني: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعمولة: ${Number(currentActiveOrder.total_commission || 0).toFixed(2)} ج.س\nالعنوان: ${currentActiveOrder.client_address || ''}\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
-            navigator.clipboard.writeText(text).then(() => {
-                alert('تم نسخ تفاصيل الفاتورة بنجاح');
-            });
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعمولة: ${Number(currentActiveOrder.total_commission || 0).toFixed(2)} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            navigator.clipboard.writeText(text).then(() => alert('تم النسخ'));
         }
 
         function renderOrders(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
-
             if (!orders || orders.length === 0) {
-                const emptyMsg = 'لا توجد فواتير معتمدة حالياً 📄';
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-400 font-semibold">${emptyMsg}</td></tr>`;
-                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 font-semibold bg-white rounded-2xl border border-gray-100">${emptyMsg}</div>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-400">لا توجد فواتير معتمدة حالياً</td></tr>`;
+                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl">لا توجد فواتير معتمدة حالياً</div>`;
                 return;
             }
 
-            let tableHtml = '';
-            let cardsHtml = '';
-
+            let tableHtml = '', cardsHtml = '';
             orders.forEach(order => {
-                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : 'غير محدد';
+                const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : '';
                 const total = Number(order.total_amount || 0).toFixed(2);
                 const commissionVal = Number(order.total_commission || 0).toFixed(2) + ' ج.س';
                 
-                const statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-200">✅ معتمدة</span>`;
-                const approveBtnClass = `bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200`;
-                const approveBtnText = `↩️ إرجاع للمعلقة`;
-
-                // كروت الشاشات الصغيرة (الجوال)
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="font-black text-slate-900 text-sm">فاتورة #${order.id_web_order}</span>
-                            ${statusBadge}
-                        </div>
+                        <span class="font-black text-slate-900 text-sm">فاتورة #${order.id_web_order}</span>
                         <span class="text-emerald-600 font-extrabold text-sm">${total} ج.س</span>
                     </div>
-                    
                     <div class="text-xs space-y-1">
-                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-right font-semibold">📱 الأساسي: ${order.client_phone || '-'}</div>
-                        <div class="text-indigo-600 dir-ltr text-right font-semibold">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
-                        <div class="text-purple-700 font-bold pt-0.5">💰 العمولة المستحقة: ${commissionVal}</div>
-                        <div class="text-gray-500 pt-1">📍 ${order.client_address || 'لم يحدد'}</div>
-                        <div class="text-[10px] text-gray-400 dir-ltr text-right pt-1">${date}</div>
+                        <div class="font-bold text-gray-900">${order.client_name || ''}</div>
+                        <div class="text-emerald-600 dir-ltr text-right">📱 الأساسي: ${order.client_phone || '-'}</div>
+                        <div class="text-indigo-600 dir-ltr text-right">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
+                        <div class="text-purple-700 font-bold pt-1">💰 العمولة: ${commissionVal}</div>
                     </div>
-
-                    <div class="bg-indigo-50/70 p-3 rounded-xl border border-indigo-100 space-y-2">
-                        <span class="text-[11px] font-bold text-indigo-900 block">بيانات المسوق والتحويل:</span>
-                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="text" placeholder="اسم البنك (مثال: بنك الخرطوم)" value="${order.custom_bank_name || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
-                        <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
-                            oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
-                            class="w-full p-2 border border-indigo-200 rounded-lg bg-white text-xs focus:ring-1 focus:ring-indigo-500">
+                    <div class="bg-indigo-50/70 p-3 rounded-xl space-y-2">
+                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
+                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
+                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
                     </div>
-
-                    <div class="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-100">
-                        <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            ${approveBtnText}
-                        </button>
-                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            👁️ معاينة
-                        </button>
-                        <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 px-1 rounded-xl text-[11px] text-center transition">
-                            🗑️ حذف
-                        </button>
+                    <div class="grid grid-cols-3 gap-1.5 pt-2 border-t">
+                        <button onclick="toggleApproval(${order.id_web_order})" class="bg-amber-50 text-amber-700 border border-amber-200 font-bold py-2 rounded-xl text-[11px]">إرجاع</button>
+                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 text-blue-600 border border-blue-200 font-bold py-2 rounded-xl text-[11px]">معاينة</button>
+                        <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 text-rose-600 border border-rose-200 font-bold py-2 rounded-xl text-[11px]">حذف</button>
                     </div>
                 </div>`;
 
-                // جدول الكمبيوتر
                 tableHtml += `
-                <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition">
-                    <td class="p-4 font-bold text-gray-900">#${order.id_web_order}</td>
-                    <td class="p-4">
-                        <div class="font-bold text-gray-900">${order.client_name || 'بدون اسم'}</div>
-                        <div class="text-emerald-600 dir-ltr text-xs font-semibold">📱 ${order.client_phone || '-'}</div>
-                        <div class="text-indigo-600 text-xs dir-ltr font-semibold">📞 ${order.client_second_phone || 'لا يوجد'}</div>
-                    </td>
-                    <td class="p-4">
-                        <div class="space-y-1.5">
-                            <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                            <input type="text" placeholder="رقم الحساب البنكي" value="${order.custom_marketer_account || ''}" 
-                                oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)"
-                                class="w-full p-1.5 border border-indigo-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 text-xs">
-                        </div>
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="p-4 font-bold">#${order.id_web_order}</td>
+                    <td class="p-4"><div class="font-bold">${order.client_name || ''}</div><div class="text-emerald-600 dir-ltr text-xs">📱 ${order.client_phone || ''}</div><div class="text-indigo-600 dir-ltr text-xs">📞 ${order.client_second_phone || 'لا يوجد'}</div></td>
+                    <td class="p-4 space-y-1.5">
+                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
+                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
+                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
                     </td>
                     <td class="p-4 font-bold text-purple-700">${commissionVal}</td>
-                    <td class="p-4">${statusBadge}</td>
+                    <td class="p-4"><span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">✅ معتمدة</span></td>
                     <td class="p-4 font-extrabold text-emerald-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
                     <td class="p-4">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-1.5 px-2.5 rounded-lg text-xs transition">
-                                ${approveBtnText}
-                            </button>
-                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">👁️ معاينة</button>
-                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">🗑️ حذف</button>
+                            <button onclick="toggleApproval(${order.id_web_order})" class="bg-amber-50 text-amber-700 border font-bold py-1.5 px-2.5 rounded-lg text-xs">إرجاع</button>
+                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 text-blue-600 border font-bold py-1.5 px-2.5 rounded-lg text-xs">معاينة</button>
+                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 text-rose-600 border font-bold py-1.5 px-2.5 rounded-lg text-xs">حذف</button>
                         </div>
                     </td>
                 </tr>`;
             });
-
             tbody.innerHTML = tableHtml;
             mobileList.innerHTML = cardsHtml;
         }
 
-        function closeInvoiceModal() {
-            document.getElementById('invoiceModal').classList.add('hidden');
-        }
-
+        function closeInvoiceModal() { document.getElementById('invoiceModal').classList.add('hidden'); }
         window.onload = fetchApprovedInvoices;
     </script>
 </body>
