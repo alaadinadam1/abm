@@ -130,7 +130,7 @@
         let globalOrders = [];
         let editingOrder = null;
 
-        // 1. جلب الطلبات فقط بدون استخدام العلاقات المباشرة المقعدة
+        // 1. جلب الطلبات
         async function fetchOrders() {
             try {
                 const { data, error } = await supabaseClient
@@ -197,7 +197,7 @@
             document.getElementById('inputClientSecondPhone').value = editingOrder.client_second_phone || '';
             document.getElementById('inputClientAddress').value = editingOrder.client_address || '';
 
-            // جلب منتجات هذا الطلب تحديداً عبر الاستعلام المباشر بـ id_web_order
+            // جلب منتجات هذا الطلب تحديداً
             try {
                 const { data: details, error } = await supabaseClient
                     .from('web_order_details')
@@ -217,7 +217,7 @@
             document.getElementById('editOrderModal').classList.remove('hidden');
         }
 
-        // 4. رسم قائمة المنتجات
+        // 4. رسم قائمة المنتجات وتحديث الحسابات فورياً
         function renderProductsList() {
             const container = document.getElementById('productsListContainer');
             let totalAmount = 0;
@@ -265,6 +265,7 @@
                 container.innerHTML = html;
             }
 
+            // تحديث إجمالي الطلب في الذاكرة وعرضه في الواجهة فورياً
             editingOrder.total_amount = totalAmount;
             document.getElementById('calculatedTotalAmount').textContent = totalAmount.toFixed(2) + ' ج.س';
         }
@@ -278,7 +279,22 @@
                 editingOrder.web_order_details[index][field] = value;
             }
 
-            renderProductsList();
+            // إعادة حساب وتحديث المجموع اللحظي دون إعادة بناء الحقول بالكامل لتفقد التركيز (Focus)
+            recalculateTotalsLocally();
+        }
+
+        // دالة مساعدة لتحديث الحسابات الفورية بسلاسة دون إعادة تحميل كامل القائمة لتفادي فقدان مؤشر الكتابة
+        function recalculateTotalsLocally() {
+            let totalAmount = 0;
+            if (editingOrder && editingOrder.web_order_details) {
+                editingOrder.web_order_details.forEach((item, index) => {
+                    const lineAmount = (Number(item.qte) || 0) * (Number(item.price) || 0);
+                    item.amount = lineAmount;
+                    totalAmount += lineAmount;
+                });
+            }
+            editingOrder.total_amount = totalAmount;
+            document.getElementById('calculatedTotalAmount').textContent = totalAmount.toFixed(2) + ' ج.س';
         }
 
         function addNewProductRow() {
@@ -299,16 +315,19 @@
             renderProductsList();
         }
 
-        // 5. حفظ التعديلات
+        // 5. حفظ التعديلات وإرسال الإجمالي المحدث لقاعدة البيانات
         async function saveOrderAndProducts() {
             if (!editingOrder) return;
+
+            // التأكد من تحديث الحسابات نهائياً قبل الحفظ
+            recalculateTotalsLocally();
 
             const saveBtn = document.getElementById('saveOrderBtn');
             saveBtn.disabled = true;
             saveBtn.textContent = 'جاري الحفظ...';
 
             try {
-                // 1) تحديث بيانات العميل وإجمالي المبلغ في web_orders
+                // 1) تحديث بيانات العميل وإجمالي المبلغ في جدول web_orders
                 const { error: orderErr } = await supabaseClient
                     .from('web_orders')
                     .update({
@@ -330,7 +349,7 @@
 
                 if (deleteErr) throw deleteErr;
 
-                // 3) إدخال المنتجات المعدلة
+                // 3) إدخال المنتجات المعدلة بالمجاميع الصحيحة
                 if (editingOrder.web_order_details && editingOrder.web_order_details.length > 0) {
                     const rowsToInsert = editingOrder.web_order_details.map(item => ({
                         id_web_order: editingOrder.id_web_order,
@@ -347,9 +366,9 @@
                     if (insertErr) throw insertErr;
                 }
 
-                alert('✅ تم حفظ كافة البيانات والمنتجات بنجاح');
+                alert('✅ تم حفظ كافة البيانات والمنتجات وتحديث الفاتورة بنجاح');
                 closeModal();
-                fetchOrders();
+                fetchOrders(); // تحديث الجدول الرئيسي بالبيانات الجديدة
 
             } catch (err) {
                 console.error("خطأ أثناء حفظ التعديلات:", err);
