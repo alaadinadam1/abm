@@ -426,7 +426,8 @@
         }
 
         // دالة الإرسال عبر واتساب المحدثة لتفتح التطبيق مباشرة واختيار الرقم من السجل
-function sendToWhatsappDirectly() {
+// دالة الإرسال الذكية عبر واتساب وتطبيقات المشاركة
+async function sendToWhatsappDirectly() {
     if (!currentActiveOrder) return;
     const activeComm = getActiveCommission(currentActiveOrder);
     
@@ -461,9 +462,26 @@ function sendToWhatsappDirectly() {
                 marketerSection +
                 `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
-    // استخدام بروتوكول whatsapp المباشر لفتح تطبيق الهاتف والتوجيه لسجل الأسماء مباشرة
+    // 1. الخيار الأول والأنسب للهواتف الذكية: استخدام قائمة المشاركة المدمجة في النظام
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `فاتورة طلب #${currentActiveOrder.id_web_order}`,
+                text: msg
+            });
+            return; // تم فتح قائمة المشاركة بنجاح
+        } catch (err) {
+            // في حال ألغى المستخدم النافذة أو حدث خطأ، يتم الانتقال للحل الاحتياطي
+            console.log("تم إلغاء المشاركة أو لم تكتمل:", err);
+        }
+    }
+
+    // 2. الخيار الاحتياطي للكمبيوتر والمتصفحات التي لا تدعم navigator.share
     const encodedText = encodeURIComponent(msg);
-    window.location.href = `whatsapp://send?text=${encodedText}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+    
+    // فتح الرابط مباشرة في نافذة جديدة
+    window.open(whatsappUrl, '_blank');
 }
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
