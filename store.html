@@ -103,7 +103,7 @@
                 // تسريع الجلب: طلب الأعمدة الهامة فقط بدلاً من * الشاملة والبطيئة
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, qte_in_stock, image_url");
+                    .select("id_product, product_name , seal_price , qte_in_stock , image_url");
                 
                 if (!error && data && data.length > 0) {
                     products = data;
@@ -115,7 +115,7 @@
                 console.warn("تم التحويل للوضع الاحتياطي الفوري والسريع:", error.message);
                 // تم إصلاح الأخطاء البرمجية هنا وإضافة مخزون افتراضي لتعمل فوراً عند انقطاع الإنترنت
                 products = [
-                    { id_product: 101, product_name: "شورط كورة ", seal_price: 650, qte_in_stock: 10 },
+                    { id_product: 101, product_name: " جاري التحميل  ", seal_price: 00, qte_in_stock: 10 },
                     
                 ];
             }
