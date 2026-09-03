@@ -463,7 +463,29 @@
 
             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         }
+function sendToWhatsappDirectly() {
+            if (!currentActiveOrder) return;
+            const totalCommission = calculateTotalCommission(currentActiveOrder);
 
+            const messageText = buildShareText(currentActiveOrder, totalCommission);
+            const encodedText = encodeURIComponent(messageText);
+            
+            // فتح تطبيق الواتساب المكتبي أو الجوال مباشرة مع تجهيز نص الرسالة واختيار المتلقي من التطبيق
+            window.location.href = `whatsapp://send?text=${encodedText}`;
+        }
+
+        // 7. نسخ النص
+        function copyInvoiceText() {
+            if (!currentActiveOrder) return;
+            const totalCommission = calculateTotalCommission(currentActiveOrder);
+            const text = buildShareText(currentActiveOrder, totalCommission);
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert("تم نسخ النص بنجاح!");
+            }).catch(() => alert("تعذر النسخ"));
+        }
+
+        window.onload = fetchOrders;
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const activeComm = getActiveCommission(currentActiveOrder);
