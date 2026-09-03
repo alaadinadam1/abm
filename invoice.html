@@ -31,7 +31,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-200">
             <div>
                 <h1 class="text-xl sm:text-2xl font-black text-slate-900">✅ الفواتير المعتمدة</h1>
-                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">قائمة الفواتير والطلبات المطابقة لبيانات الإدارة</p>
+                <p class="text-[11px] sm:text-xs text-gray-500 mt-0.5">عرض الفواتير كما تم اعتمادها في صفحة إدارة البيانات</p>
             </div>
             
             <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -40,14 +40,14 @@
                     <span id="totalRevenue" class="text-lg sm:text-xl font-black text-emerald-900">0.00 ج.س</span>
                 </div>
                 
-                <button onclick="fetchApprovedInvoices()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
+                <button onclick="loadApprovedInvoices()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
                     🔄 <span class="hidden sm:inline">تحديث البيانات</span>
                 </button>
             </div>
         </div>
 
         <div id="mobileOrdersList" class="block md:hidden space-y-3">
-            <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل البيانات...</div>
+            <div class="text-center p-8 text-gray-400 bg-white rounded-2xl shadow-sm">جاري تحميل الفواتير المعتمدة...</div>
         </div>
 
         <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -56,9 +56,9 @@
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold">
                             <th class="p-4">رقم الطلب</th>
-                            <th class="p-4">العميل وأرقام الهواتف</th>
+                            <th class="p-4">بيانات العميل</th>
                             <th class="p-4 min-w-[220px]">بيانات المسوق والبنك</th>
-                            <th class="p-4">العمولة المستحقة</th>
+                            <th class="p-4">العمولة</th>
                             <th class="p-4">الحالة</th>
                             <th class="p-4">المبلغ الإجمالي</th>
                             <th class="p-4">تاريخ الطلب</th>
@@ -66,7 +66,7 @@
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody">
-                        <tr><td colspan="8" class="text-center p-8 text-gray-400">جاري تحميل البيانات...</td></tr>
+                        <tr><td colspan="8" class="text-center p-8 text-gray-400">جاري تحميل الفواتير المعتمدة...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -76,7 +76,7 @@
     <div id="invoiceModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
         <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col border border-gray-100">
             <div class="bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex justify-between items-center no-print shrink-0 rounded-t-3xl">
-                <h3 class="font-bold text-xs sm:text-sm">معاينة الفاتورة</h3>
+                <h3 class="font-bold text-xs sm:text-sm">معاينة الفاتورة المعتمدة</h3>
                 <button onclick="closeInvoiceModal()" class="w-8 h-8 rounded-full bg-slate-800 text-gray-300 flex items-center justify-center font-bold">✕</button>
             </div>
             <div id="modalInvoiceCard" class="p-4 sm:p-6 overflow-y-auto text-gray-800 bg-white grow"></div>
@@ -99,7 +99,7 @@
         let globalOrders = [];
         let currentActiveOrder = null;
 
-        function getSavedExtraData() {
+        function getExtraData() {
             try { return JSON.parse(localStorage.getItem('orders_extra_data')) || {}; } catch (e) { return {}; }
         }
 
@@ -107,16 +107,18 @@
             try { localStorage.setItem('orders_extra_data', JSON.stringify(data)); } catch (e) {}
         }
 
-        async function fetchApprovedInvoices() {
+        async function loadApprovedInvoices() {
             try {
-                const { data: orders, error: ordersError } = await supabaseClient
+                // جلب الطلبات المعتمدة مباشرة من Supabase (حسب حقل is_approved أو الاعتماد المحلي)
+                const { data: orders, error } = await supabaseClient
                     .from('web_orders')
                     .select('*')
                     .order('date_created', { ascending: false });
 
-                if (ordersError) throw ordersError;
+                if (error) throw error;
                 let fetchedOrders = orders || [];
 
+                // جلب تفاصيل المنتجات المرتبطة
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
                     const { data: details } = await supabaseClient
@@ -132,21 +134,13 @@
 
                     fetchedOrders.forEach(o => {
                         o.web_order_details = detailsMap[o.id_web_order] || [];
-                        
-                        // جلب العمولة مباشرة من الجدول الرئيسي إن وجدت، أو حسابها من التفاصيل كبديل آمن
-                        let comm = Number(o.commission || o.total_commission || 0);
-                        if (comm === 0 && o.web_order_details.length > 0) {
-                            o.web_order_details.forEach(item => {
-                                comm += Number(item.commission || item.item_commission || 0);
-                            });
-                        }
-                        o.total_commission = comm;
                     });
                 }
 
-                const savedExtra = getSavedExtraData();
+                const savedExtra = getExtraData();
                 globalOrders = fetchedOrders;
 
+                // مطابقة البيانات الإضافية وحالة الاعتماد
                 globalOrders.forEach(o => {
                     const extra = savedExtra[o.id_web_order] || {};
                     o.custom_marketer_name = extra.name !== undefined ? extra.name : (o.custom_marketer_name || '');
@@ -157,22 +151,24 @@
 
                 renderUI();
             } catch (err) {
-                console.error("خطأ:", err);
+                console.error("خطأ في جلب الفواتير:", err);
             }
         }
 
         function renderUI() {
+            // تصفية الفواتير المعتمدة فقط
             const approvedOrders = globalOrders.filter(o => o.is_approved === true);
             const grandTotal = approvedOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+            
             document.getElementById('totalRevenue').textContent = grandTotal.toFixed(2) + ' ج.س';
-            renderOrders(approvedOrders);
+            renderOrdersTable(approvedOrders);
         }
 
-        function setOrderMarketerData(orderId, field, value) {
+        function updateExtraField(orderId, field, value) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (order) {
                 order[field] = value;
-                const savedExtra = getSavedExtraData();
+                const savedExtra = getExtraData();
                 if (!savedExtra[orderId]) savedExtra[orderId] = {};
                 if (field === 'custom_marketer_name') savedExtra[orderId].name = value;
                 if (field === 'custom_bank_name') savedExtra[orderId].bank = value;
@@ -184,32 +180,19 @@
         async function toggleApproval(orderId) {
             const order = globalOrders.find(o => o.id_web_order === orderId);
             if (!order) return;
-            const newApprovedState = !order.is_approved;
-            order.is_approved = newApprovedState;
-
-            const savedExtra = getSavedExtraData();
+            
+            order.is_approved = !order.is_approved;
+            const savedExtra = getExtraData();
             if (!savedExtra[orderId]) savedExtra[orderId] = {};
-            savedExtra[orderId].isApproved = newApprovedState;
+            savedExtra[orderId].isApproved = order.is_approved;
             saveExtraData(savedExtra);
 
             renderUI();
             if (currentActiveOrder && currentActiveOrder.id_web_order === orderId) closeInvoiceModal();
 
             try {
-                await supabaseClient.from('web_orders').update({ is_approved: newApprovedState }).eq('id_web_order', orderId);
+                await supabaseClient.from('web_orders').update({ is_approved: order.is_approved }).eq('id_web_order', orderId);
             } catch (e) {}
-        }
-
-        async function deleteOrder(orderId) {
-            if (!confirm(`هل أنت متأكد من حذف الفاتورة #${orderId}؟`)) return;
-            try {
-                await supabaseClient.from('web_order_details').delete().eq('id_web_order', orderId);
-                await supabaseClient.from('web_orders').delete().eq('id_web_order', orderId);
-                globalOrders = globalOrders.filter(o => o.id_web_order !== orderId);
-                renderUI();
-            } catch (err) {
-                alert('خطأ أثناء الحذف');
-            }
         }
 
         function openInvoiceModal(orderId) {
@@ -219,10 +202,12 @@
 
             const modalBody = document.getElementById('modalInvoiceCard');
             let detailsHtml = '';
+            
             (order.web_order_details || []).forEach(item => {
                 const price = Number(item.price || 0).toFixed(2);
                 const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
-                const itemComm = Number(item.commission || 0).toFixed(2);
+                const itemComm = Number(item.commission || item.item_commission || 0).toFixed(2);
+                
                 detailsHtml += `
                 <tr class="border-b border-gray-100 text-xs">
                     <td class="py-2 px-1 font-semibold">${item.product_name || 'منتج'}</td>
@@ -232,6 +217,9 @@
                     <td class="py-2 px-1 text-left font-bold">${amount}</td>
                 </tr>`;
             });
+
+            // قراءة العمولة الإجمالية كما هي مخزنة في قاعدة البيانات (بدون إعادة حساب)
+            const displayedCommission = Number(order.total_commission || order.commission || 0).toFixed(2);
 
             modalBody.innerHTML = `
             <div id="printableInvoice" class="space-y-4">
@@ -244,17 +232,17 @@
                     <div><span class="text-gray-500 block text-[10px]">العميل:</span><span class="font-bold text-gray-900">${order.client_name || ''}</span></div>
                     <div><span class="text-gray-500 block text-[10px]">الهاتف:</span><span class="font-bold text-emerald-600 dir-ltr text-right block">${order.client_phone || ''}</span></div>
                     <div><span class="text-gray-500 block text-[10px]">الهاتف الثاني:</span><span class="font-bold text-indigo-600 dir-ltr text-right block">${order.client_second_phone || 'لا يوجد'}</span></div>
-                    <div><span class="text-gray-500 block text-[10px]">إجمالي العمولة:</span><span class="font-bold text-purple-600 block">${Number(order.total_commission || 0).toFixed(2)} ج.س</span></div>
+                    <div><span class="text-gray-500 block text-[10px]">إجمالي العمولة:</span><span class="font-bold text-purple-600 block">${displayedCommission} ج.س</span></div>
                     <div class="col-span-2"><span class="text-gray-500 block text-[10px]">العنوان:</span><span class="font-semibold text-gray-800">${order.client_address || ''}</span></div>
                 </div>
                 <div>
                     <table class="w-full text-right border-collapse">
-                        <thead><tr class="border-b border-gray-200 text-[11px] text-gray-500"><th class="py-1.5 px-1">المنتج</th><th class="py-1.5 px-1 text-center">الكمية</th><th class="py-1.5 px-1 text-center">السعر</th><th class="py-1.5 px-1 text-center">عمولة</th><th class="py-1.5 px-1 text-left">المجموع</th></tr></thead>
+                        <thead><tr class="border-b border-gray-200 text-[11px] text-gray-500"><th class="py-1.5 px-1">المنتج</th><th class="py-1.5 px-1 text-center">الكمية</th><th class="py-1.5 px-1 text-center">السعر</th><th class="py-1.5 px-1 text-center">العمولة</th><th class="py-1.5 px-1 text-left">المجموع</th></tr></thead>
                         <tbody>${detailsHtml}</tbody>
                     </table>
                 </div>
                 <div class="flex justify-between items-center bg-emerald-900 text-white p-3 rounded-xl font-bold text-sm">
-                    <span>الإجمالي:</span><span class="text-emerald-300 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
+                    <span>الإجمالي المدفوع:</span><span class="text-emerald-300 text-base">${Number(order.total_amount || 0).toFixed(2)} ج.س</span>
                 </div>
             </div>`;
             document.getElementById('invoiceModal').classList.remove('hidden');
@@ -263,22 +251,25 @@
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const phone = currentActiveOrder.client_phone ? currentActiveOrder.client_phone.replace(/[^0-9]/g, '') : '';
-            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، الفاتورة رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س معتمدة.`;
+            const msg = `مرحباً ${currentActiveOrder.client_name || ''}، الفاتورة رقم #${currentActiveOrder.id_web_order} بقيمة ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س معتمدة بنجاح.`;
             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
-            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعمولة: ${Number(currentActiveOrder.total_commission || 0).toFixed(2)} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
-            navigator.clipboard.writeText(text).then(() => alert('تم النسخ'));
+            const comm = Number(currentActiveOrder.total_commission || currentActiveOrder.commission || 0).toFixed(2);
+            let text = `الفاتورة المعتمدة #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعمولة: ${comm} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            navigator.clipboard.writeText(text).then(() => alert('تم النسخ بنجاح'));
         }
 
-        function renderOrders(orders) {
+        function renderOrdersTable(orders) {
             const tbody = document.getElementById('ordersTableBody');
             const mobileList = document.getElementById('mobileOrdersList');
+            
             if (!orders || orders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-400">لا توجد فواتير معتمدة حالياً</td></tr>`;
-                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl">لا توجد فواتير معتمدة حالياً</div>`;
+                const emptyText = 'لا توجد فواتير معتمدة حالياً 📄';
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-400">${emptyText}</td></tr>`;
+                mobileList.innerHTML = `<div class="text-center p-8 text-gray-400 bg-white rounded-2xl">${emptyText}</div>`;
                 return;
             }
 
@@ -286,7 +277,7 @@
             orders.forEach(order => {
                 const date = order.date_created ? new Date(order.date_created).toLocaleString('ar-SD') : '';
                 const total = Number(order.total_amount || 0).toFixed(2);
-                const commissionVal = Number(order.total_commission || 0).toFixed(2) + ' ج.س';
+                const commVal = Number(order.total_commission || order.commission || 0).toFixed(2) + ' ج.س';
                 
                 cardsHtml += `
                 <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
@@ -298,17 +289,16 @@
                         <div class="font-bold text-gray-900">${order.client_name || ''}</div>
                         <div class="text-emerald-600 dir-ltr text-right">📱 الأساسي: ${order.client_phone || '-'}</div>
                         <div class="text-indigo-600 dir-ltr text-right">📞 الثاني: ${order.client_second_phone || 'لا يوجد'}</div>
-                        <div class="text-purple-700 font-bold pt-1">💰 العمولة: ${commissionVal}</div>
+                        <div class="text-purple-700 font-bold pt-1">💰 العمولة: ${commVal}</div>
                     </div>
                     <div class="bg-indigo-50/70 p-3 rounded-xl space-y-2">
-                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
-                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
-                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
+                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
+                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
+                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-2 border rounded-lg text-xs bg-white">
                     </div>
-                    <div class="grid grid-cols-3 gap-1.5 pt-2 border-t">
-                        <button onclick="toggleApproval(${order.id_web_order})" class="bg-amber-50 text-amber-700 border border-amber-200 font-bold py-2 rounded-xl text-[11px]">إرجاع</button>
-                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 text-blue-600 border border-blue-200 font-bold py-2 rounded-xl text-[11px]">معاينة</button>
-                        <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 text-rose-600 border border-rose-200 font-bold py-2 rounded-xl text-[11px]">حذف</button>
+                    <div class="grid grid-cols-2 gap-1.5 pt-2 border-t">
+                        <button onclick="toggleApproval(${order.id_web_order})" class="bg-amber-50 text-amber-700 border border-amber-200 font-bold py-2 rounded-xl text-xs">↩️ إرجاع للمعلقة</button>
+                        <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 text-blue-600 border border-blue-200 font-bold py-2 rounded-xl text-xs">👁️ معاينة الفاتورة</button>
                     </div>
                 </div>`;
 
@@ -317,11 +307,11 @@
                     <td class="p-4 font-bold">#${order.id_web_order}</td>
                     <td class="p-4"><div class="font-bold">${order.client_name || ''}</div><div class="text-emerald-600 dir-ltr text-xs">📱 ${order.client_phone || ''}</div><div class="text-indigo-600 dir-ltr text-xs">📞 ${order.client_second_phone || 'لا يوجد'}</div></td>
                     <td class="p-4 space-y-1.5">
-                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
-                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
-                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="setOrderMarketerData(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
+                        <input type="text" placeholder="اسم المسوق" value="${order.custom_marketer_name || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_marketer_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
+                        <input type="text" placeholder="اسم البنك" value="${order.custom_bank_name || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_bank_name', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
+                        <input type="text" placeholder="رقم الحساب" value="${order.custom_marketer_account || ''}" oninput="updateExtraField(${order.id_web_order}, 'custom_marketer_account', this.value)" class="w-full p-1.5 border rounded-lg text-xs">
                     </td>
-                    <td class="p-4 font-bold text-purple-700">${commissionVal}</td>
+                    <td class="p-4 font-bold text-purple-700">${commVal}</td>
                     <td class="p-4"><span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full">✅ معتمدة</span></td>
                     <td class="p-4 font-extrabold text-emerald-600">${total} ج.س</td>
                     <td class="p-4 text-xs text-gray-400 dir-ltr">${date}</td>
@@ -329,7 +319,6 @@
                         <div class="flex items-center justify-center gap-1.5">
                             <button onclick="toggleApproval(${order.id_web_order})" class="bg-amber-50 text-amber-700 border font-bold py-1.5 px-2.5 rounded-lg text-xs">إرجاع</button>
                             <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 text-blue-600 border font-bold py-1.5 px-2.5 rounded-lg text-xs">معاينة</button>
-                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 text-rose-600 border font-bold py-1.5 px-2.5 rounded-lg text-xs">حذف</button>
                         </div>
                     </td>
                 </tr>`;
@@ -339,7 +328,7 @@
         }
 
         function closeInvoiceModal() { document.getElementById('invoiceModal').classList.add('hidden'); }
-        window.onload = fetchApprovedInvoices;
+        window.onload = loadApprovedInvoices;
     </script>
 </body>
 </html>
