@@ -144,7 +144,6 @@
 
         async function fetchApprovedInvoices() {
             try {
-                // جلب الطلبات
                 const { data: orders, error: ordersError } = await supabaseClient
                     .from('web_orders')
                     .select('*')
@@ -157,7 +156,6 @@
                 if (fetchedOrders.length > 0) {
                     const orderIds = fetchedOrders.map(o => o.id_web_order);
                     
-                    // جلب تفاصيل الطلبات والمنتجات
                     const { data: details } = await supabaseClient
                         .from('web_order_details')
                         .select('*')
@@ -169,12 +167,10 @@
                         detailsMap[d.id_web_order].push(d);
                     });
 
-                    // ربط التفاصيل بالطلبات وحساب العمولة الكلية من المنتجات
                     fetchedOrders.forEach(o => {
                         const orderDetails = detailsMap[o.id_web_order] || [];
                         o.web_order_details = orderDetails;
                         
-                        // حساب إجمالي العمولة (commission) من جدول التفاصيل
                         let totalCommission = 0;
                         orderDetails.forEach(item => {
                             totalCommission += Number(item.commission || 0);
@@ -334,7 +330,7 @@
                     </div>
                 </div>
 
-                ${(order.custom_marketer_name || order.custom_bank_name) ? `
+                 ${(order.custom_marketer_name || order.custom_bank_name) ? `
                 <div class="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 text-xs space-y-1">
                     <div class="font-bold text-indigo-900 text-[11px]">بيانات المسوق والتحويل:</div>
                     ${order.custom_marketer_name ? `<div>• المسوق: <span class="font-semibold">${order.custom_marketer_name}</span></div>` : ''}
@@ -483,8 +479,8 @@
                             <button onclick="toggleApproval(${order.id_web_order})" class="${approveBtnClass} border font-bold py-1.5 px-2.5 rounded-lg text-xs transition">
                                 ${approveBtnText}
                             </button>
-                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">👁️ عرض</button>
-                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">🗑️</button>
+                            <button onclick="openInvoiceModal(${order.id_web_order})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">👁️ معاينة</button>
+                            <button onclick="deleteOrder(${order.id_web_order})" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition">🗑️ حذف</button>
                         </div>
                     </td>
                 </tr>`;
