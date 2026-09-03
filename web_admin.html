@@ -425,67 +425,46 @@
             currentActiveOrder = null;
         }
 
-        // دالة الإرسال عبر واتساب المحدثة لتشمل كافة البيانات بالتفصيل
-        function sendToWhatsappDirectly() {
-            if (!currentActiveOrder) return;
-            const activeComm = getActiveCommission(currentActiveOrder);
-            
-            let detailsList = '';
-            if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
-                currentActiveOrder.web_order_details.forEach((item, idx) => {
-                    const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
-                    detailsList += `${idx + 1}. ${item.product_name || 'منتج'} (الكمية: ${item.qte || item.quantity || 1}) - المجموع: ${amount} ج.س\n`;
-                });
-            }
-
-            // إضافة بيانات المسوق والبنك فقط إذا تم إدخالها
-            let marketerSection = '';
-            if (currentActiveOrder.custom_marketer_name || currentActiveOrder.custom_bank_name || currentActiveOrder.custom_marketer_account) {
-                marketerSection = `------------------\n` +
-                                  `📋 *بيانات المسوق والتحويل:*\n` +
-                                  (currentActiveOrder.custom_marketer_name ? `• المسوق: ${currentActiveOrder.custom_marketer_name}\n` : '') +
-                                  (currentActiveOrder.custom_bank_name ? `• البنك: ${currentActiveOrder.custom_bank_name}\n` : '') +
-                                  (currentActiveOrder.custom_marketer_account ? `• الحساب: ${currentActiveOrder.custom_marketer_account}\n` : '');
-            }
-
-            const msg = `🧾 *فاتورة طلب #${currentActiveOrder.id_web_order}*\n` +
-                        `------------------\n` +
-                        `👤 العميل: ${currentActiveOrder.client_name || 'بدون اسم'}\n` +
-                        `📱 الهاتف الأساسي: ${currentActiveOrder.client_phone || '-'}\n` +
-                        `📞 الهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\n` +
-                        `📍 العنوان: ${currentActiveOrder.client_address || 'لم يحدد'}\n` +
-                        `------------------\n` +
-                        `📦 *المنتجات:*\n${detailsList}` +
-                        `------------------\n` +
-                        `💵 العمولة المستحقة: ${activeComm.toFixed(2)} ج.س\n` +
-                        marketerSection +
-                        `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
-
-            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-        }
+        // دالة الإرسال عبر واتساب المحدثة لتفتح التطبيق مباشرة واختيار الرقم من السجل
 function sendToWhatsappDirectly() {
-            if (!currentActiveOrder) return;
-            const totalCommission = calculateTotalCommission(currentActiveOrder);
+    if (!currentActiveOrder) return;
+    const activeComm = getActiveCommission(currentActiveOrder);
+    
+    let detailsList = '';
+    if (currentActiveOrder.web_order_details && currentActiveOrder.web_order_details.length > 0) {
+        currentActiveOrder.web_order_details.forEach((item, idx) => {
+            const amount = Number(item.amount || (item.qte * item.price) || 0).toFixed(2);
+            detailsList += `${idx + 1}. ${item.product_name || 'منتج'} (الكمية: ${item.qte || item.quantity || 1}) - المجموع: ${amount} ج.س\n`;
+        });
+    }
 
-            const messageText = buildShareText(currentActiveOrder, totalCommission);
-            const encodedText = encodeURIComponent(messageText);
-            
-            // فتح تطبيق الواتساب المكتبي أو الجوال مباشرة مع تجهيز نص الرسالة واختيار المتلقي من التطبيق
-            window.location.href = `whatsapp://send?text=${encodedText}`;
-        }
+    // إضافة بيانات المسوق والبنك فقط إذا تم إدخالها
+    let marketerSection = '';
+    if (currentActiveOrder.custom_marketer_name || currentActiveOrder.custom_bank_name || currentActiveOrder.custom_marketer_account) {
+        marketerSection = `------------------\n` +
+                          `📋 *بيانات المسوق والتحويل:*\n` +
+                          (currentActiveOrder.custom_marketer_name ? `• المسوق: ${currentActiveOrder.custom_marketer_name}\n` : '') +
+                          (currentActiveOrder.custom_bank_name ? `• البنك: ${currentActiveOrder.custom_bank_name}\n` : '') +
+                          (currentActiveOrder.custom_marketer_account ? `• الحساب: ${currentActiveOrder.custom_marketer_account}\n` : '');
+    }
 
-        // 7. نسخ النص
-        function copyInvoiceText() {
-            if (!currentActiveOrder) return;
-            const totalCommission = calculateTotalCommission(currentActiveOrder);
-            const text = buildShareText(currentActiveOrder, totalCommission);
-            
-            navigator.clipboard.writeText(text).then(() => {
-                alert("تم نسخ النص بنجاح!");
-            }).catch(() => alert("تعذر النسخ"));
-        }
+    const msg = `🧾 *فاتورة طلب #${currentActiveOrder.id_web_order}*\n` +
+                `------------------\n` +
+                `👤 العميل: ${currentActiveOrder.client_name || 'بدون اسم'}\n` +
+                `📱 الهاتف الأساسي: ${currentActiveOrder.client_phone || '-'}\n` +
+                `📞 الهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\n` +
+                `📍 العنوان: ${currentActiveOrder.client_address || 'لم يحدد'}\n` +
+                `------------------\n` +
+                `📦 *المنتجات:*\n${detailsList}` +
+                `------------------\n` +
+                `💵 العمولة المستحقة: ${activeComm.toFixed(2)} ج.س\n` +
+                marketerSection +
+                `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
-        window.onload = fetchOrders;
+    // استخدام بروتوكول whatsapp المباشر لفتح تطبيق الهاتف والتوجيه لسجل الأسماء مباشرة
+    const encodedText = encodeURIComponent(msg);
+    window.location.href = `whatsapp://send?text=${encodedText}`;
+}
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const activeComm = getActiveCommission(currentActiveOrder);
