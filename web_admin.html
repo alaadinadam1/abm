@@ -420,12 +420,7 @@
             document.getElementById('invoiceModal').classList.add('active');
         }
 
-        function closeInvoiceModal() {
-            document.getElementById('invoiceModal').classList.remove('active');
-            currentActiveOrder = null;
-        }
-
-        // دالة الإرسال عبر واتساب المحدثة لتفتح التطبيق مباشرة واختيار الرقم من السجل
+        // دالة إرسال وتحويل ذكية تضمن فتح تطبيق الواتساب لاختيار جهة الاتصال
 async function sendToWhatsappDirectly() {
     if (!currentActiveOrder) return;
     const activeComm = typeof getActiveCommission === 'function' ? getActiveCommission(currentActiveOrder) : 0;
@@ -461,22 +456,22 @@ async function sendToWhatsappDirectly() {
                 `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
     const encodedText = encodeURIComponent(msg);
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
 
-    // 1. محاولة استخدام قائمة المشاركة الخاصة بالنظام (للجوال)
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `فاتورة طلب #${currentActiveOrder.id_web_order}`,
-                text: msg
-            });
-            return;
-        } catch (err) {
-            console.log("تجاوز المشاركة المباشرة:", err);
-        }
+    // 1. أجهزة أندرويد: استخدام Intent المباشر لفتح تطبيق واتساب فوراً على قائمة الأسماء
+    if (/android/i.test(userAgent)) {
+        window.location.href = `intent://send?text=${encodedText}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+        return;
     }
 
-    // 2. التوجيه المباشر لتطبيق الواتساب دون نوافذ منبثقة
-    window.location.href = `https://wa.me/?text=${encodedText}`;
+    // 2. أجهزة iOS (آيفون/آيباد): استخدام بروتوكول api.whatsapp المباشر
+    if (/iPhone|iPad|iPod/i.test(userAgent)) {
+        window.location.href = `https://api.whatsapp.com/send?text=${encodedText}`;
+        return;
+    }
+
+    // 3. أجهزة الكمبيوتر ومتصفحات الويب الأخرى
+    window.location.href = `https://web.whatsapp.com/send?text=${encodedText}`;
 }
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
