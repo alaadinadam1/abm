@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>للأجهزة الكهربائية والمنزلية</title>
+    <title>متجر الأزياء الإلكتروني</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -91,7 +91,8 @@
     <script>
         const supabaseClient = supabase.createClient(
             "https://ihlwkwiimimoiplfqcdk.supabase.co",
-            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK"
+            "sb_publishable_Yr8COAP3Hp_cibgD1wdQZg_Ic9zZEoK
+"
         );
 
         let products = [];
@@ -102,7 +103,7 @@
                 // تسريع الجلب: طلب الأعمدة الهامة فقط بدلاً من * الشاملة والبطيئة
                 const { data, error } = await supabaseClient
                     .from("products")
-                    .select("id_product, product_name, seal_price, qte_in_stock, image_product");
+                    .select("id_product, product_name, seal_price, qte_in_stock, image_url");
                 
                 if (!error && data && data.length > 0) {
                     products = data;
