@@ -100,25 +100,47 @@
 
         const fallbackImg = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=600&auto=format&fit=crop";
 
+        // دالة جلب كافة المنتجات من قاعدة البيانات بدفعات لتجاوز الحد الأقصى الافتراضي
         async function fetchProducts() {
             try {
-                const { data, error } = await supabaseClient
-                    .from("products")
-                    .select("id_product, product_name, seal_price, pay_price, coasts_value, department, image_url");
+                let allProducts = [];
+                let rangeStep = 1000;
+                let from = 0;
+                let to = rangeStep - 1;
+                let fetchMore = true;
 
-                if (error) {
-                    console.error("تفاصيل خطأ Supabase:", error);
-                    document.getElementById("productsGrid").innerHTML = `
-                        <div class="col-span-full text-center py-16 bg-white rounded-2xl border border-gray-200">
-                            <span class="text-4xl block mb-2">⚠️</span>
-                            <p class="text-red-500 font-bold">تعذر جلب البيانات: ${error.message}</p>
-                        </div>`;
-                    return;
+                while (fetchMore) {
+                    const { data, error } = await supabaseClient
+                        .from("products")
+                        .select("id_product, product_name, seal_price, pay_price, coasts_value, department, image_url")
+                        .range(from, to);
+
+                    if (error) {
+                        console.error("تفاصيل خطأ Supabase:", error);
+                        document.getElementById("productsGrid").innerHTML = `
+                            <div class="col-span-full text-center py-16 bg-white rounded-2xl border border-gray-200">
+                                <span class="text-4xl block mb-2">⚠️</span>
+                                <p class="text-red-500 font-bold">تعذر جلب البيانات: ${error.message}</p>
+                            </div>`;
+                        return;
+                    }
+
+                    if (data && data.length > 0) {
+                        allProducts = allProducts.concat(data);
+                        if (data.length < rangeStep) {
+                            fetchMore = false;
+                        } else {
+                            from += rangeStep;
+                            to += rangeStep;
+                        }
+                    } else {
+                        fetchMore = false;
+                    }
                 }
 
-                if (data && data.length > 0) {
-                    products = data;
-                    filteredProducts = data;
+                if (allProducts.length > 0) {
+                    products = allProducts;
+                    filteredProducts = allProducts;
                     renderProducts(filteredProducts);
                 } else {
                     document.getElementById("productsGrid").innerHTML = `
@@ -180,20 +202,37 @@
             document.getElementById("productsGrid").innerHTML = html;
         }
 
+        // إضافة المنتج للسلة مع تخفيف الحجم لمنع تجاوز ذاكرة التخزين المؤقت (QuotaExceededError)
         function addToCart(productId) {
             const product = products.find(p => p.id_product === productId);
             if (!product) return;
             
             const existingIndex = cart.findIndex(item => item.id_product === productId);
+            let calculatedPrice = Number(product.seal_price) || Number(product.coasts_value) || Number(product.pay_price) || 0;
+
             if (existingIndex > -1) {
                 cart[existingIndex].quantity = (cart[existingIndex].quantity || 1) + 1;
             } else {
-                cart.push({ ...product, quantity: 1 });
+                cart.push({
+                    id_product: product.id_product,
+                    product_name: product.product_name,
+                    price: calculatedPrice,
+                    image_url: product.image_url,
+                    quantity: 1
+                });
             }
 
-            localStorage.setItem('customerCart', JSON.stringify(cart));
-            updateCartCount();
-            alert("✅ تم إضافة المنتج إلى السلة بنجاح");
+            try {
+                localStorage.setItem('customerCart', JSON.stringify(cart));
+                updateCartCount();
+                alert("✅ تم إضافة المنتج إلى السلة بنجاح");
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    alert("❌ عذراً، ذاكرة التخزين المؤقت للمتصفح ممتلئة. يرجى مراجعة وتفريغ السلة.");
+                } else {
+                    console.error(e);
+                }
+            }
         }
 
         function updateCartCount() {
