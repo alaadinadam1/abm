@@ -57,9 +57,9 @@
         .btn-delete { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
 
         /* النافذة المنخفضة (Modal) */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: flex-end; sm:align-items: center; justify-content: center; padding: 0; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: flex-end; justify-content: center; padding: 0; }
         .modal-overlay.active { display: flex; }
-        .modal-box { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; sm:border-radius: 24px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .modal-box { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
         .modal-header { background: #0f172a; color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
         .modal-footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 20px; display: flex; gap: 8px; justify-content: flex-end; }
@@ -74,7 +74,7 @@
             .table-container { display: block; }
             .mobile-list { display: none; }
             .modal-box { border-radius: 24px; }
-            .modal-overlay { padding: 20px; }
+            .modal-overlay { padding: 20px; align-items: center; }
         }
 
         @media print {
@@ -425,6 +425,7 @@
             currentActiveOrder = null;
         }
 
+        // دالة الإرسال عبر واتساب المحدثة لتشمل كافة البيانات بالتفصيل
         function sendToWhatsappDirectly() {
             if (!currentActiveOrder) return;
             const activeComm = getActiveCommission(currentActiveOrder);
@@ -437,15 +438,27 @@
                 });
             }
 
-            const msg = `🧾 *تفاصيل الفاتورة #${currentActiveOrder.id_web_order}*\n` +
+            // إضافة بيانات المسوق والبنك فقط إذا تم إدخالها
+            let marketerSection = '';
+            if (currentActiveOrder.custom_marketer_name || currentActiveOrder.custom_bank_name || currentActiveOrder.custom_marketer_account) {
+                marketerSection = `------------------\n` +
+                                  `📋 *بيانات المسوق والتحويل:*\n` +
+                                  (currentActiveOrder.custom_marketer_name ? `• المسوق: ${currentActiveOrder.custom_marketer_name}\n` : '') +
+                                  (currentActiveOrder.custom_bank_name ? `• البنك: ${currentActiveOrder.custom_bank_name}\n` : '') +
+                                  (currentActiveOrder.custom_marketer_account ? `• الحساب: ${currentActiveOrder.custom_marketer_account}\n` : '');
+            }
+
+            const msg = `🧾 *فاتورة طلب #${currentActiveOrder.id_web_order}*\n` +
                         `------------------\n` +
                         `👤 العميل: ${currentActiveOrder.client_name || 'بدون اسم'}\n` +
-                        `📱 الهاتف: ${currentActiveOrder.client_phone || '-'}\n` +
+                        `📱 الهاتف الأساسي: ${currentActiveOrder.client_phone || '-'}\n` +
+                        `📞 الهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\n` +
                         `📍 العنوان: ${currentActiveOrder.client_address || 'لم يحدد'}\n` +
                         `------------------\n` +
                         `📦 *المنتجات:*\n${detailsList}` +
                         `------------------\n` +
-                        `💵 العمولة: ${activeComm.toFixed(2)} ج.س\n` +
+                        `💵 العمولة المستحقة: ${activeComm.toFixed(2)} ج.س\n` +
+                        marketerSection +
                         `💰 *الإجمالي الكلي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س*`;
 
             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -454,7 +467,7 @@
         function copyInvoiceText() {
             if (!currentActiveOrder) return;
             const activeComm = getActiveCommission(currentActiveOrder);
-            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف: ${currentActiveOrder.client_phone || ''}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالعمولة المستحقة: ${activeComm.toFixed(2)} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
+            let text = `تفاصيل الطلب #${currentActiveOrder.id_web_order}\nالعميل: ${currentActiveOrder.client_name || ''}\nالهاتف الأساسي: ${currentActiveOrder.client_phone || ''}\nالهاتف الاحتياطي: ${currentActiveOrder.client_second_phone || 'لا يوجد'}\nالعنوان: ${currentActiveOrder.client_address || ''}\nالعمولة المستحقة: ${activeComm.toFixed(2)} ج.س\nالإجمالي: ${Number(currentActiveOrder.total_amount || 0).toFixed(2)} ج.س`;
             navigator.clipboard.writeText(text).then(() => { alert('تم نسخ تفاصيل الفاتورة بنجاح'); });
         }
 
