@@ -590,5 +590,18 @@ async function sendToWhatsappDirectly() {
 
         window.onload = () => { fetchOrders(); };
     </script>
+    function closeInvoiceModal() {
+    // 1. البحث عن العنصر الحاوي للنافذة المنبثقة
+    // غير 'invoiceModal' إلى id النافذة في كودك إن كان مختلفاً
+    const modal = document.getElementById('invoiceModal'); 
+    
+    if (modal) {
+        // إخفاء النافذة عبر التنسيق
+        modal.style.display = 'none';
+        
+        // أو إذا كنت تستخدم Tailwind CSS للإخفاء:
+        // modal.classList.add('hidden');
+    }
+}
 </body>
 </html>
